@@ -1,0 +1,165 @@
+# =============================================================================
+# Docker Compose - Multi-Service Web Application
+# =============================================================================
+# Architecture:
+#   Client -> Reverse Proxy (Nginx) -> Backend API (NestJS) -> Database (PostgreSQL)
+#                                  -> Frontend (Next.js)
+#
+# Networks:
+#   - frontend: Connects proxy to frontend and backend (public-facing services)
+#   - backend: Connects backend to database (internal services only)
+#
+# The database is isolated and only accessible from the backend service
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # Reverse Proxy - Nginx
+  # ===========================================================================
+  proxy:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: notes-proxy
+    restart: unless-stopped
+    ports:
+      - "${PROXY_PORT:-80}:80"
+    networks:
+      - frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.docker.compose.project=notes-app"
+      - "com.docker.compose.service=proxy"
+
+  # ===========================================================================
+  # Frontend - Next.js
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    container_name: notes-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost/api}
+    networks:
+      - frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "com.docker.compose.project=notes-app"
+      - "com.docker.compose.service=frontend"
+    # Note: Frontend does NOT expose ports directly - only accessible via proxy
+
+  # ===========================================================================
+  # Backend API - NestJS
+  # ===========================================================================
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: notes-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_USERNAME=${DB_USERNAME:-dbadmin}
+      - DB_PASSWORD=${DB_PASSWORD:-changeme}
+      - DB_NAME=${DB_NAME:-notesdb}
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.docker.compose.project=notes-app"
+      - "com.docker.compose.service=backend"
+    # Note: Backend does NOT expose ports directly - only accessible via proxy
+
+  # ===========================================================================
+  # Database - PostgreSQL
+  # ===========================================================================
+  database:
+    image: postgres:15-alpine
+    container_name: notes-database
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${DB_USERNAME:-dbadmin}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+      - POSTGRES_DB=${DB_NAME:-notesdb}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-dbadmin} -d ${DB_NAME:-notesdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    labels:
+      - "com.docker.compose.project=notes-app"
+      - "com.docker.compose.service=database"
+    # Note: Database does NOT expose ports - only accessible from backend network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  # Frontend network - connects proxy, frontend, and backend (for API calls)
+  frontend:
+    driver: bridge
+    name: notes-frontend-network
+    labels:
+      - "com.docker.compose.project=notes-app"
+      - "com.docker.compose.network=frontend"
+
+  # Backend network - connects backend and database (isolated)
+  backend:
+    driver: bridge
+    name: notes-backend-network
+    internal: true  # No external access - completely isolated
+    labels:
+      - "com.docker.compose.project=notes-app"
+      - "com.docker.compose.network=backend"
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # Named volume for PostgreSQL data persistence
+  postgres_data:
+    driver: local
+    name: notes-postgres-data
+    labels:
+      - "com.docker.compose.project=notes-app"
+      - "com.docker.compose.volume=postgres_data"

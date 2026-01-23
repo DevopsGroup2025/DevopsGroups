@@ -1,0 +1,50 @@
+---
+- name: Configure Nginx Web Server with Role-Based Architecture
+  hosts: all
+  become: yes
+  
+  vars_files:
+    - group_vars/all/vars.yml
+    - group_vars/all/vault.yml
+  
+  pre_tasks:
+    - name: Display deployment information
+      debug:
+        msg: 
+          - "Deploying to host: {{ inventory_hostname }}"
+          - "Environment: {{ environment }}"
+          - "Project: {{ project | default('N/A') }}"
+      tags: always
+
+    - name: Wait for system to become reachable
+      wait_for_connection:
+        timeout: 300
+      tags: always
+
+    - name: Gather facts
+      setup:
+      tags: always
+
+  roles:
+    - role: webserver
+      tags: webserver
+
+  post_tasks:
+    - name: Verify web application is accessible
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}"
+        status_code: 200
+        return_content: yes
+      register: webapp_check
+      retries: 3
+      delay: 5
+      tags: verify
+
+    - name: Display deployment success message
+      debug:
+        msg:
+          - "✅ Deployment completed successfully!"
+          - "🌐 Web application URL: http://{{ inventory_hostname }}"
+          - "📊 Environment: {{ environment }}"
+      when: webapp_check is success
+      tags: verify

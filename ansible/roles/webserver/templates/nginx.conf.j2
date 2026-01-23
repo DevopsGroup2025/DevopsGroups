@@ -1,0 +1,59 @@
+user {{ webserver_user }};
+worker_processes {{ nginx_worker_processes }};
+error_log /var/log/nginx/error.log;
+pid /run/nginx.pid;
+
+events {
+    worker_connections {{ nginx_worker_connections }};
+}
+
+http {
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log /var/log/nginx/access.log main;
+
+    sendfile            on;
+    tcp_nopush          on;
+    tcp_nodelay         on;
+    keepalive_timeout   {{ nginx_keepalive_timeout }};
+    types_hash_max_size 2048;
+    server_tokens       {{ nginx_server_tokens }};
+    client_max_body_size {{ nginx_client_max_body_size }};
+
+    include             /etc/nginx/mime.types;
+    default_type        application/octet-stream;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss;
+
+    server {
+        listen       80 default_server;
+        listen       [::]:80 default_server;
+        server_name  _;
+        root         {{ webserver_document_root }};
+
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+
+        location / {
+            index index.html index.htm;
+            try_files $uri $uri/ =404;
+        }
+
+        error_page 404 /404.html;
+        location = /404.html {
+        }
+
+        error_page 500 502 503 504 /50x.html;
+        location = /50x.html {
+        }
+    }
+}

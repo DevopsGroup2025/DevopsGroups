@@ -1,0 +1,15 @@
+# =============================================================================
+# Terraform Backend Configuration Example
+# =============================================================================
+# Copy this file to backend.hcl and update with your values.
+# Run: cp backend.hcl.example backend.hcl
+#
+# Then initialize Terraform:
+#   terraform init -backend-config=backend.hcl
+# =============================================================================
+
+bucket         = "terraform-state-YOUR_PROJECT-YOUR_ACCOUNT_ID"
+key            = "iac/terraform.tfstate"
+region         = "eu-west-1"
+dynamodb_table = "terraform-state-locks"
+encrypt        = true

@@ -1,0 +1,56 @@
+# AWS EC2 Dynamic Inventory Configuration
+plugin: aws_ec2
+
+# AWS region(s) to query
+# IMPORTANT: Must match terraform/variables.tf aws_region default or your terraform.tfvars
+regions:
+- eu-west-1
+
+# Filter instances by tags
+# IMPORTANT: Values must match terraform tags (Project and Environment from terraform/variables.tf)
+filters:
+  instance-state-name: running
+  "tag:Project": terraform-ansible-webapp
+  "tag:Environment": dev
+
+# Keyed groups - organize hosts by tags
+keyed_groups:
+# Group by instance role
+- key: tags.Role
+  prefix: role
+  separator: "_"
+
+# Group by environment
+- key: tags.Environment
+  prefix: env
+  separator: "_"
+
+# Group by instance type
+- key: instance_type
+  prefix: type
+  separator: "_"
+
+# Compose variables from instance attributes
+compose:
+  ansible_host: public_ip_address
+  ansible_user: "'ec2-user'"
+  instance_name: tags.Name
+  instance_role: tags.Role
+  environment: tags.Environment
+  project: tags.Project
+  managed_by: tags.ManagedBy
+  private_ip: private_ip_address
+  public_ip: public_ip_address
+
+# Hostnames - how to identify instances
+hostnames:
+- tag:Name
+- public-ip-address
+
+# Use strict mode to catch errors
+strict: False
+
+# Include/exclude hosts
+# exclude_filters:
+#   - instance-state-name: stopped
+#   - instance-state-name: terminated

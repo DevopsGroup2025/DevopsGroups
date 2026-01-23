@@ -1,0 +1,14 @@
+- name: Deploy Frontend (Next.js)
+  hosts: role_frontend
+  become: no
+
+  vars:
+    project_name: "{{ project_name | default('webapp') }}"
+    app_dir: "/home/{{ ansible_user }}/frontend"
+    frontend_port: 3000
+    # Backend host - uses inventory hostname (IP address) for browser access
+    backend_host: "{{ groups['role_backend'][0] }}"
+    backend_port: 3001
+
+  roles:
+  - role: frontend

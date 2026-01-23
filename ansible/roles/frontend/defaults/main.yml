@@ -1,0 +1,15 @@
+---
+# Frontend Role Default Variables
+
+# Application directory
+app_dir: "/home/{{ ansible_user }}/frontend"
+
+# Frontend port
+frontend_port: 3000
+
+# Backend configuration (should be overridden)
+backend_host: "localhost"
+backend_port: 3001
+
+# Project name
+project_name: "webapp"
