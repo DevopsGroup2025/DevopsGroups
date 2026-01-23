@@ -1,0 +1,6 @@
+ansible_ssh_common_args: >-
+  -o StrictHostKeyChecking=no 
+  -o UserKnownHostsFile=/dev/null 
+  -o ProxyCommand="ssh -i {{ playbook_dir }}/keys/terraform-ansible-webapp-key.pem -W %h:%p ec2-user@{{ groups['role_frontend'][0] }}"
+ansible_rsync_extra_opts: >-
+  --rsh="ssh -i {{ playbook_dir }}/keys/terraform-ansible-webapp-key.pem -o ProxyCommand=ssh\ -i\ {{ playbook_dir }}/keys/terraform-ansible-webapp-key.pem\ -W\ %h:%p\ ec2-user@{{ groups['role_frontend'][0] }}"
