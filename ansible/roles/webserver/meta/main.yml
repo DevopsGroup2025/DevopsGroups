@@ -1,0 +1,22 @@
+# Webserver Role - Meta Information
+
+dependencies: []
+
+galaxy_info:
+  author: DevOps Team
+  description: Nginx webserver role for Terraform-Ansible webapp
+  company: 
+  license: MIT
+  min_ansible_version: 2.14
+  
+  platforms:
+    - name: Amazon Linux
+      versions:
+        - 2
+  
+  galaxy_tags:
+    - nginx
+    - webserver
+    - web
+    - terraform
+    - ansible
