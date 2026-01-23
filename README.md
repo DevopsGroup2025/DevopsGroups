@@ -9,3 +9,6 @@ The application stack consists of:
 - A relational database with persistent storage
 - A reverse proxy for routing and traffic management
 - Isolated container networks and environment-based configuration
+
+---
+Update Here
