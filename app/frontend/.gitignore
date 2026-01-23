@@ -5,4 +5,7 @@ out/
 .env.production
 *.log
 .DS_Store
+<<<<<<< HEAD:frontend/.gitignore
 .env.local.example
+=======
+>>>>>>> faf14f7 (app):app/frontend/.gitignore

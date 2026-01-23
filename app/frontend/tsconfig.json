@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "ES2021",
     "lib": ["dom", "dom.iterable", "esnext"],
+<<<<<<< HEAD:frontend/tsconfig.json
     "allowJs": true, 
+=======
+    "allowJs": true,
+>>>>>>> faf14f7 (app):app/frontend/tsconfig.json
     "skipLibCheck": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
