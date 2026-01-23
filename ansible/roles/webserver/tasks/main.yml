@@ -1,0 +1,77 @@
+# Webserver Role - Main Tasks
+
+- name: Update package cache
+  yum:
+    update_cache: yes
+  tags: setup
+
+- name: Enable Amazon Linux Extras for Nginx
+  command: amazon-linux-extras enable nginx1
+  changed_when: false
+  when: ansible_distribution == "Amazon"
+  tags: setup
+
+- name: Install Nginx from Amazon Linux Extras
+  command: amazon-linux-extras install nginx1 -y
+  args:
+    creates: /usr/sbin/nginx
+  when: ansible_distribution == "Amazon"
+  tags: packages
+
+- name: Install other required packages
+  yum:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ webserver_packages }}"
+  when: item != 'nginx'
+  tags: packages
+
+- name: Ensure Nginx configuration directory exists
+  file:
+    path: "{{ nginx_config_dir }}"
+    state: directory
+    mode: '0755'
+  tags: config
+
+- name: Deploy Nginx configuration
+  template:
+    src: nginx.conf.j2
+    dest: "{{ nginx_config_dir }}/nginx.conf"
+    mode: '0644'
+    validate: 'nginx -t -c %s'
+  notify: restart nginx
+  tags: config
+
+- name: Create web application directory
+  file:
+    path: "{{ webserver_document_root }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ webserver_user }}"
+    group: "{{ webserver_group }}"
+  tags: webapp
+
+- name: Deploy web application content
+  template:
+    src: index.html.j2
+    dest: "{{ webserver_document_root }}/index.html"
+    mode: '0644'
+    owner: "{{ webserver_user }}"
+    group: "{{ webserver_group }}"
+  notify: reload nginx
+  tags: webapp
+
+- name: Ensure Nginx is enabled and started
+  service:
+    name: "{{ webserver_service_name }}"
+    state: started
+    enabled: yes
+  tags: service
+
+- name: Check Nginx is responding
+  uri:
+    url: "http://localhost"
+    status_code: 200
+  retries: 3
+  delay: 5
+  tags: verify

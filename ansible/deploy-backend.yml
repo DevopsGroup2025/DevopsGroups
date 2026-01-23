@@ -1,0 +1,19 @@
+- name: Deploy Backend API (NestJS)
+  hosts: role_backend
+  become: no
+
+  vars:
+    project_name: "{{ project_name | default('webapp') }}"
+    app_dir: "/home/{{ ansible_user }}/backend"
+    backend_port: 3001
+    # Database configuration - pass these via -e flags or group_vars
+    # db_endpoint should be: terraform output -raw database_address
+    # db_password should be: your RDS password
+    database_host: "{{ db_endpoint | default('localhost') }}"
+    database_port: 5432
+    database_username: "{{ db_username | default('dbadmin') }}"
+    database_password: "{{ db_password }}"
+    database_name: "{{ db_name | default('notesdb') }}"
+
+  roles:
+  - role: backend

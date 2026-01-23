@@ -1,0 +1,40 @@
+# Backend Nginx Reverse Proxy Configuration
+
+- name: Enable Amazon Linux Extras nginx repository
+  become: yes
+  command: amazon-linux-extras enable nginx1
+  changed_when: false
+
+- name: Install Nginx
+  become: yes
+  yum:
+    name: nginx
+    state: present
+    enablerepo: amzn2extra-nginx1
+
+- name: Ensure Nginx configuration directory exists
+  become: yes
+  file:
+    path: /etc/nginx/conf.d
+    state: directory
+    mode: '0755'
+
+- name: Deploy Nginx reverse proxy config for backend
+  become: yes
+  template:
+    src: backend-nginx.conf.j2
+    dest: /etc/nginx/conf.d/backend.conf
+    mode: '0644'
+  notify: restart nginx
+
+- name: Ensure Nginx is enabled and started
+  become: yes
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+
+- name: Check Nginx configuration is valid
+  become: yes
+  command: nginx -t
+  changed_when: false
