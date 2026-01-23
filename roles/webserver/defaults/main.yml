@@ -1,0 +1,32 @@
+---
+# Webserver Role - Default Variables
+
+# Package management
+webserver_packages:
+  - nginx
+  - python3
+  - python3-pip
+
+# Service configuration
+webserver_service_name: nginx
+webserver_user: nginx
+webserver_group: nginx
+
+# Paths
+webserver_document_root: /usr/share/nginx/html
+nginx_config_dir: /etc/nginx
+
+# Application configuration
+app_title: "{{ vault_app_title | default('Terraform + Ansible Web App') }}"
+app_subtitle: "{{ vault_app_subtitle | default('Successfully deployed with Infrastructure as Code!') }}"
+app_environment: "{{ environment | default('development') }}"
+app_version: "1.0.0"
+
+# Performance tuning
+nginx_worker_processes: auto
+nginx_worker_connections: 1024
+nginx_keepalive_timeout: 65
+
+# Security settings
+nginx_server_tokens: "off"
+nginx_client_max_body_size: "10m"

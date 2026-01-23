@@ -1,0 +1,17 @@
+---
+- name: Restart backend service
+  shell: pm2 restart backend || pm2 start {{ app_dir }}/dist/main.js --name backend
+  args:
+    chdir: "{{ app_dir }}"
+
+- name: restart nginx
+  become: yes
+  service:
+    name: nginx
+    state: restarted
+
+- name: reload nginx
+  become: yes
+  service:
+    name: nginx
+    state: reloaded

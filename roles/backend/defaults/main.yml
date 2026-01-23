@@ -1,0 +1,18 @@
+---
+# Backend Role Default Variables
+
+# Application directory
+app_dir: "/home/{{ ansible_user }}/backend"
+
+# Backend API port
+backend_port: 3001
+
+# Database configuration (should be overridden)
+database_host: "localhost"
+database_port: 5432
+database_username: "dbadmin"
+database_password: "db_password"
+database_name: "notesdb"
+
+# Project name
+project_name: "terraform-ansible-webapp"
