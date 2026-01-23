@@ -58,11 +58,14 @@ ENV HOSTNAME="0.0.0.0"
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001 -G nodejs
 
-# Copy necessary files from builder
+# Create public directory and copy if exists
+RUN mkdir -p ./public
+
+# Copy public files from builder (if any)
 COPY --from=builder /app/public ./public
 
 # Set the correct permission for prerender cache
-RUN mkdir .next && chown nextjs:nodejs .next
+RUN mkdir -p .next && chown nextjs:nodejs .next
 
 # Automatically leverage output traces to reduce image size
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
