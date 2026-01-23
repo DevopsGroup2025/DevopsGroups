@@ -1,0 +1,6 @@
+- name: Deploy Full-Stack Application
+  hosts: all
+  gather_facts: yes
+
+- import_playbook: deploy-backend.yml
+- import_playbook: deploy-frontend.yml
