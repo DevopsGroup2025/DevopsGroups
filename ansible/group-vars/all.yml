@@ -1,0 +1,35 @@
+# Non-sensitive variables for all hosts
+
+# Environment
+environment: dev
+timezone: UTC
+
+
+ansible_python_interpreter: /usr/bin/python3
+project_name: terraform-ansible-webapp
+ansible_user: ec2-user
+ansible_ssh_private_key_file: "{{ playbook_dir }}/keys/terraform-ansible-webapp-key.pem"
+
+# Backend Configuration (non-sensitive)
+backend_port: 3001
+frontend_port: 3000
+nginx_port: 80
+
+# Monitoring
+enable_monitoring: false
+monitoring_endpoint: ""
+
+# Backup
+enable_backup: false
+backup_schedule: "0 2 * * *"
+
+# Logging
+log_level: info
+log_retention_days: 7
+
+# Security Headers
+security_headers:
+  x_frame_options: "SAMEORIGIN"
+  x_content_type_options: "nosniff"
+  x_xss_protection: "1; mode=block"
+  referrer_policy: "strict-origin-when-cross-origin"
