@@ -12,6 +12,43 @@
 #   ansible-playbook playbooks/deploy.yml -i inventory/deploy.ini
 # =============================================================================
 
+# =============================================================================
+# Bootstrap Python on all hosts (runs before gather_facts)
+# =============================================================================
+- name: Bootstrap Python
+  hosts: all
+  gather_facts: no
+  become: yes
+  
+  tasks:
+    - name: Check if Python 3 is available
+      raw: which python3 || which python
+      register: python_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Python 3 on Amazon Linux 2
+      raw: |
+        if command -v yum &> /dev/null; then
+          yum install -y python3 python3-pip
+        elif command -v dnf &> /dev/null; then
+          dnf install -y python3 python3-pip
+        fi
+      when: python_check.rc != 0
+      ignore_errors: yes
+
+    - name: Verify Python installation
+      raw: python3 --version || python --version
+      register: python_version
+      changed_when: false
+
+    - name: Display Python version
+      debug:
+        msg: "Python version: {{ python_version.stdout | default('unknown') }}"
+
+# =============================================================================
+# Gather facts and display deployment info
+# =============================================================================
 - name: Deploy Application Stack
   hosts: all
   gather_facts: yes
@@ -32,7 +69,7 @@
 - name: Install Docker on all hosts
   hosts: all
   become: yes
-  gather_facts: yes
+  gather_facts: no
   
   tasks:
     - name: Install Docker dependencies
@@ -77,7 +114,7 @@
 - name: Deploy Backend
   hosts: backend
   become: yes
-  gather_facts: yes
+  gather_facts: no
   
   tasks:
     - name: Login to ECR
@@ -142,7 +179,7 @@
 - name: Deploy Frontend
   hosts: frontend
   become: yes
-  gather_facts: yes
+  gather_facts: no
   
   tasks:
     - name: Login to ECR
@@ -202,7 +239,7 @@
 - name: Deploy Nginx Proxy on Bastion
   hosts: bastion
   become: yes
-  gather_facts: yes
+  gather_facts: no
   
   tasks:
     - name: Login to ECR

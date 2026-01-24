@@ -1084,7 +1084,9 @@ jobs:
 
       - name: Install Ansible
         run: |
-          pip install ansible boto3 botocore
+          # Use ansible-core 2.14.x which supports Python 3.7+ on remote hosts
+          # Newer versions (2.15+) require Python 3.8+ on remote hosts
+          pip install 'ansible-core>=2.14,<2.15' boto3 botocore
 
       - name: Setup SSH key from secrets
         run: |
@@ -1129,7 +1131,8 @@ jobs:
           backend
           
           [all:vars]
-          ansible_python_interpreter=/usr/bin/python3
+          # Auto-discover Python interpreter on remote hosts
+          ansible_python_interpreter=auto_silent
           
           # Database Configuration
           db_host=${{ vars.DB_HOST }}
