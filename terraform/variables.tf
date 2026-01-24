@@ -48,9 +48,9 @@ variable "vpc_azs_count" {
 }
 
 variable "enable_nat_gateway" {
-  description = "Enable NAT Gateway for private subnets"
+  description = "Enable NAT Gateway for private subnets (required for private instances to access internet/ECR)"
   type        = bool
-  default     = false
+  default     = true # Must be true for production architecture
 }
 
 variable "single_nat_gateway" {
@@ -66,7 +66,13 @@ variable "enable_vpc_flow_logs" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type"
+  description = "EC2 instance type for application servers"
+  type        = string
+  default     = "t3.micro"
+}
+
+variable "bastion_instance_type" {
+  description = "EC2 instance type for bastion/load balancer host"
   type        = string
   default     = "t3.micro"
 }
@@ -84,7 +90,13 @@ variable "ssh_user" {
 }
 
 variable "ssh_cidr_blocks" {
-  description = "CIDR blocks allowed for SSH access"
+  description = "CIDR blocks allowed for SSH access (legacy, use bastion_ssh_cidr_blocks)"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "bastion_ssh_cidr_blocks" {
+  description = "CIDR blocks allowed to SSH to bastion host (restrict to your IP in production)"
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
@@ -197,4 +209,28 @@ variable "enable_rds_monitoring" {
   description = "Enable enhanced RDS monitoring"
   type        = bool
   default     = false
+}
+
+# =============================================================================
+# ECR Configuration
+# =============================================================================
+variable "ecr_repository_names" {
+  description = "List of ECR repository names to create"
+  type        = list(string)
+  default     = ["backend", "frontend", "proxy"]
+}
+
+variable "ecr_max_image_count" {
+  description = "Maximum number of images to keep per ECR repository"
+  type        = number
+  default     = 10
+}
+
+# =============================================================================
+# SSM/IAM Configuration
+# =============================================================================
+variable "enable_ssm_access" {
+  description = "Enable SSM Session Manager access to EC2 instances"
+  type        = bool
+  default     = true
 }

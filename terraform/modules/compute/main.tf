@@ -27,9 +27,11 @@ resource "aws_instance" "web_server" {
   subnet_id     = var.subnet_id
 
   vpc_security_group_ids = var.security_group_ids
-  
-  monitoring              = var.enable_monitoring
+  iam_instance_profile   = var.iam_instance_profile != "" ? var.iam_instance_profile : null
+
+  monitoring                  = var.enable_monitoring
   associate_public_ip_address = var.associate_public_ip
+  ebs_optimized               = var.enable_ebs_optimization
 
   root_block_device {
     volume_size           = var.root_volume_size
@@ -48,15 +50,22 @@ resource "aws_instance" "web_server" {
       Environment = var.environment
     }
   )
+
+  lifecycle {
+    ignore_changes = [user_data]
+  }
 }
 
 # Create Ansible inventory file
+# Uses public_ip if available, otherwise private_ip (for instances behind bastion)
 resource "local_file" "ansible_inventory" {
   content = templatefile("${path.module}/templates/inventory.tpl", {
-    public_ip        = aws_instance.web_server.public_ip
+    host_ip          = var.associate_public_ip ? aws_instance.web_server.public_ip : aws_instance.web_server.private_ip
     ssh_user         = var.ssh_user
     private_key_path = var.private_key_path
     instance_name    = var.instance_name
+    instance_role    = var.instance_role
+    is_private       = !var.associate_public_ip
   })
   filename = var.inventory_file_path
 }

@@ -23,7 +23,9 @@ crash.*.log
 ansible/keys/*.pem
 ansible/inventory.ini
 ansible/inventory-*.ini
+ansible/inventory/hosts.ini
 !ansible/inventory.ini.example
+!ansible/inventory/hosts.ini.example
 
 # Node.js
 node_modules/
@@ -78,3 +80,4 @@ temp/
 *.key
 secrets/
 credentials/
+

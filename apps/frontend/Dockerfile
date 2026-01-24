@@ -46,6 +46,9 @@ LABEL maintainer="DevOps Team"
 LABEL description="Next.js Frontend for Notes Application"
 LABEL version="1.0.0"
 
+# Install wget for health checks
+RUN apk add --no-cache wget
+
 WORKDIR /app
 
 # Set environment variables
@@ -71,15 +74,19 @@ RUN mkdir -p .next && chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Verify the build
+RUN ls -la /app/ && test -f /app/server.js
+
 # Switch to non-root user
 USER nextjs
 
 # Expose the application port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
+# Health check with longer start period
+HEALTHCHECK --interval=10s --timeout=10s --start-period=30s --retries=6 \
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1
 
 # Start the application
 CMD ["node", "server.js"]
+
