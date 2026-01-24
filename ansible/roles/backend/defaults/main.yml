@@ -1,18 +1,13 @@
----
-# Backend Role Default Variables
-
-# Application directory
+project_name: webapp
 app_dir: "/home/{{ ansible_user }}/backend"
-
-# Backend API port
 backend_port: 3001
-
-# Database configuration (should be overridden)
-database_host: "localhost"
+# ECR settings
+ecr_repository: "backend"
+ecr_region: "eu-west-1"
+docker_image_tag: "latest"
+# Database config
+database_host: localhost
 database_port: 5432
-database_username: "dbadmin"
-database_password: "db_password"
-database_name: "notesdb"
-
-# Project name
-project_name: "terraform-ansible-webapp"
+database_username: dbadmin
+database_password: password
+database_name: notesdb
