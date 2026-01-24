@@ -33,3 +33,5 @@ terraform.rc
 # Environment variables
 .env
 .env.local
+# Allow all .tf files in modules/secrets
+!modules/secrets/*.tf

@@ -63,7 +63,10 @@ resource "aws_instance" "frontend" {
   
   user_data = file("${path.module}/user_data/frontend.sh")
   
-  tags = { Name = "frontend-${count.index + 1}" }
+  tags = {
+    Name = "frontend-${count.index + 1}"
+    Role = "frontend"
+  }
 }
 
 resource "aws_instance" "backend" {
@@ -77,12 +80,18 @@ resource "aws_instance" "backend" {
   
   user_data = file("${path.module}/user_data/backend.sh")
   
-  tags = { Name = "backend-${count.index + 1}" }
+  tags = { 
+    Name = "backend-${count.index + 1}"
+    Role = "backend"
+  }
 }
 
 resource "aws_eip" "bastion" {
   domain = "vpc"
-  tags   = { Name = "bastion-eip" }
+  tags   = { 
+    Name = "bastion-eip"
+    Role = "bastion"
+     }
 }
 
 resource "aws_eip_association" "bastion" {
