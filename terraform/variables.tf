@@ -21,3 +21,9 @@ variable "instance_type" {
   type        = string
   default     = "t3.micro"
 }
+
+variable "db_username" {
+  description = "Database username"
+  type        = string
+  default     = "dbadmin"
+}

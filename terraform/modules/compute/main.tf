@@ -22,6 +22,22 @@ resource "aws_ecr_repository" "backend" {
   name = "backend-app"
 }
 
+# CloudWatch Log Groups
+resource "aws_cloudwatch_log_group" "frontend_logs" {
+  name              = "/aws/ec2/frontend"
+  retention_in_days = 7
+}
+
+resource "aws_cloudwatch_log_group" "backend_logs" {
+  name              = "/aws/ec2/backend"
+  retention_in_days = 7
+}
+
+resource "aws_cloudwatch_log_group" "docker_logs" {
+  name              = "/aws/ec2/docker"
+  retention_in_days = 7
+}
+
 
 
 resource "aws_instance" "bastion" {
@@ -45,6 +61,8 @@ resource "aws_instance" "frontend" {
   subnet_id              = var.private_subnet_ids[count.index % length(var.private_subnet_ids)]
   iam_instance_profile   = var.iam_instance_profile_name
   
+  user_data = file("${path.module}/user_data/frontend.sh")
+  
   tags = { Name = "frontend-${count.index + 1}" }
 }
 
@@ -56,6 +74,8 @@ resource "aws_instance" "backend" {
   vpc_security_group_ids = [var.backend_security_group_id]
   subnet_id              = var.private_subnet_ids[count.index % length(var.private_subnet_ids)]
   iam_instance_profile   = var.iam_instance_profile_name
+  
+  user_data = file("${path.module}/user_data/backend.sh")
   
   tags = { Name = "backend-${count.index + 1}" }
 }

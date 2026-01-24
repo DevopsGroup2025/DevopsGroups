@@ -23,12 +23,13 @@ module "security" {
 }
 
 module "secrets" {
-  source = "./modules/secrets"
+  source      = "./modules/secrets"
+  db_username = var.db_username
 }
 
 module "iam" {
-  source         = "./modules/iam"
-  secret_arn     = module.database.db_secret_arn
+  source     = "./modules/iam"
+  secret_arn = module.secrets.db_secret_arn
 }
 
 module "compute" {
@@ -47,4 +48,6 @@ module "database" {
   source                = "./modules/database"
   private_subnet_ids    = module.vpc.private_subnet_ids
   db_security_group_id  = module.security.db_security_group_id
+  db_username          = module.secrets.db_username
+  db_password          = module.secrets.db_password
 }

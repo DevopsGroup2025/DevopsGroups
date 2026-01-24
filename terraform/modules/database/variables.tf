@@ -6,7 +6,13 @@ variable "db_security_group_id" {
   type = string
 }
 
-variable "kms_key_id" {
-  type = string
-  default = null
+variable "db_username" {
+  description = "Database username"
+  type        = string
+}
+
+variable "db_password" {
+  description = "Database password"
+  type        = string
+  sensitive   = true
 }

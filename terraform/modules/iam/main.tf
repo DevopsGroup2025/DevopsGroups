@@ -34,6 +34,16 @@ resource "aws_iam_policy" "ec2_policy" {
           "ecr:BatchGetImage"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "*"
       }
     ]
   })

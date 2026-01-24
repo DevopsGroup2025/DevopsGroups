@@ -15,5 +15,5 @@ output "db_endpoint" {
 
 output "db_secret_arn" {
   description = "ARN of the database secret in Secrets Manager"
-  value       = module.database.db_secret_arn
+  value       = module.secrets.db_secret_arn
 }

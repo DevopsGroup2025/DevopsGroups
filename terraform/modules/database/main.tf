@@ -13,9 +13,8 @@ resource "aws_db_instance" "postgres" {
   storage_type           = "gp2"
   
   db_name  = "appdb"
-  username = "postgres"
-  manage_master_user_password = true
-  master_user_secret_kms_key_id = var.kms_key_id
+  username = var.db_username
+  password = var.db_password
   
   vpc_security_group_ids = [var.db_security_group_id]
   db_subnet_group_name   = aws_db_subnet_group.main.name
