@@ -232,12 +232,7 @@
   gather_facts: no
   
   tasks:
-    - name: Login to ECR
-      shell: |
-        aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_registry }}
-      register: ecr_login
-      changed_when: "'Login Succeeded' in ecr_login.stdout"
-
+    # Note: No ECR login needed - using public nginx:alpine image
     - name: Pull nginx image
       shell: docker pull nginx:alpine
       register: pull_result
