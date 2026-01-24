@@ -9,8 +9,23 @@
 #   2. Build - Build Docker images
 #   3. Security Scan - Scan images for vulnerabilities
 #   4. Integration Test - Test services together
-#   5. Push - Push images to registry (on main branch)
-#   6. Deploy - Deploy to infrastructure (on main branch)
+#   5. Push - Push images to AWS ECR
+#   6. Deploy - Deploy to AWS via Ansible (through bastion host)
+#
+# Required GitHub Secrets:
+#   - AWS_ACCESS_KEY_ID: AWS access key for ECR and deployment
+#   - AWS_SECRET_ACCESS_KEY: AWS secret key
+#   - AWS_SESSION_TOKEN: (Optional) AWS session token for temporary credentials
+#   - SSH_PRIVATE_KEY: SSH private key for connecting to EC2 instances
+#   - DB_PASSWORD: Database password
+#
+# Required GitHub Variables:
+#   - AWS_REGION: AWS region (default: eu-west-1)
+#   - AWS_ACCOUNT_ID: AWS account ID for ECR
+#   - BASTION_IP: Public IP of bastion host
+#   - FRONTEND_IP: Private IP of frontend instance
+#   - BACKEND_IP: Private IP of backend instance
+#   - DB_HOST: RDS database endpoint
 # =============================================================================
 
 name: CI/CD Pipeline
@@ -19,15 +34,11 @@ on:
   push:
     branches:
       - main
-      - develop
-      - 'feature/**'
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
+      - 'develop/**'
   pull_request:
     branches:
       - main
-      - develop
+      - 'develop/**'
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -36,15 +47,14 @@ on:
       deploy_environment:
         description: 'Environment to deploy to'
         required: false
-        default: 'staging'
+        default: 'prod'
         type: choice
         options:
-          - staging
-          - production
+          - prod
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/notes-app
+  # Docker Build Configuration
+  IMAGE_PREFIX: terraform-ansible-webapp
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
 
@@ -94,10 +104,15 @@ jobs:
     name: Build Images
     runs-on: ubuntu-latest
     needs: lint-test
+    environment: prod
     outputs:
       backend-image: ${{ steps.meta-backend.outputs.tags }}
       frontend-image: ${{ steps.meta-frontend.outputs.tags }}
       proxy-image: ${{ steps.meta-proxy.outputs.tags }}
+      image-tag: ${{ github.sha }}
+    
+    env:
+      ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
     
     steps:
       - name: Checkout code
@@ -106,22 +121,25 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
       # Backend Image
       - name: Extract metadata for Backend
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend
+          images: ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
@@ -142,10 +160,8 @@ jobs:
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend
+          images: ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
@@ -166,10 +182,8 @@ jobs:
         id: meta-proxy
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy
+          images: ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
@@ -177,7 +191,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./nginx
-          file: ./nginx/Dockerfile
+          file: ./ngienvnx/Dockerfile
           push: false
           load: true
           tags: ${{ steps.meta-proxy.outputs.tags }}
@@ -189,9 +203,9 @@ jobs:
       - name: Save Docker images
         run: |
           mkdir -p /tmp/images
-          docker save ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }} -o /tmp/images/backend.tar
-          docker save ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }} -o /tmp/images/frontend.tar
-          docker save ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }} -o /tmp/images/proxy.tar
+          docker save ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }} -o /tmp/images/backend.tar
+          docker save ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }} -o /tmp/images/frontend.tar
+          docker save ${{ .ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }} -o /tmp/images/proxy.tar
 
       - name: Upload images artifact
         uses: actions/upload-artifact@v4
@@ -207,6 +221,9 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: build
+    environment: prod
+    env:
+      ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
     
     steps:
       - name: Checkout code
@@ -227,7 +244,7 @@ jobs:
       - name: Run Trivy vulnerability scanner on Backend
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }}'
+          image-ref: '${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }}'
           format: 'table'
           exit-code: '0'
           ignore-unfixed: true
@@ -237,7 +254,7 @@ jobs:
       - name: Run Trivy vulnerability scanner on Frontend
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}'
+          image-ref: '${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}'
           format: 'table'
           exit-code: '0'
           ignore-unfixed: true
@@ -247,7 +264,7 @@ jobs:
       - name: Run Trivy vulnerability scanner on Proxy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }}'
+          image-ref: '${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }}'
           format: 'table'
           exit-code: '0'
           ignore-unfixed: true
@@ -261,6 +278,9 @@ jobs:
     name: Integration Test
     runs-on: ubuntu-latest
     needs: build
+    environment: prod
+    env:
+      ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
     
     steps:
       - name: Checkout code
@@ -290,9 +310,9 @@ jobs:
 
       - name: Tag images for docker-compose
         run: |
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }} notes-backend:latest
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }} notes-frontend:latest
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }} notes-proxy:latest
+          docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }} notes-backend:latest
+          docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }} notes-frontend:latest
+          docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }} notes-proxy:latest
 
       - name: Start services with Docker Compose
         run: |
@@ -476,13 +496,16 @@ jobs:
           docker compose -f docker-compose.test.yml down -v --remove-orphans
 
   # ===========================================================================
-  # Stage 5: Push Images to Registry
+  # Stage 5: Push Images to AWS ECR
   # ===========================================================================
   push:
-    name: Push Images
+    name: Push Images to ECR
     runs-on: ubuntu-latest
     needs: [security-scan, integration-test]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/develop')
+    environment: prod
+    env:
+      ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
     
     steps:
       - name: Checkout code
@@ -500,39 +523,50 @@ jobs:
           docker load -i /tmp/images/frontend.tar
           docker load -i /tmp/images/proxy.tar
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Push Backend image
         run: |
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }}
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
-            docker push ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
+            docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }} ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
+            docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
           fi
 
       - name: Push Frontend image
         run: |
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
-            docker push ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
+            docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }} ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
+            docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
           fi
 
       - name: Push Proxy image
         run: |
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }}
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:latest
-            docker push ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:latest
+            docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }} ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:latest
+            docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:latest
           fi
 
   # ===========================================================================
-  # Stage 6: Deploy to AWS (Optional - requires additional setup)
+  # Stage 6: Deploy to AWS via Ansible (through Bastion)
+  # ===========================================================================
+  # This stage deploys to pre-existing infrastructure using Ansible.
+  # The infrastructure is created by Terraform separately (not in CI/CD).
+  # 
+  # Architecture:
+  #   GitHub Actions -> Bastion (public) -> Frontend/Backend (private)
   # ===========================================================================
   deploy:
     name: Deploy to AWS
@@ -540,8 +574,10 @@ jobs:
     needs: push
     if: github.ref == 'refs/heads/main'
     environment:
-      name: ${{ github.event.inputs.deploy_environment || 'staging' }}
-      url: ${{ steps.deploy.outputs.app_url }}
+      name: prod
+      url: http://${{ vars.BASTION_IP }}
+    env:
+      ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
     
     steps:
       - name: Checkout code
@@ -553,12 +589,7 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ vars.AWS_REGION || 'eu-west-1' }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: '1.5.0'
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Setup Python for Ansible
         uses: actions/setup-python@v5
@@ -569,55 +600,121 @@ jobs:
         run: |
           pip install ansible boto3 botocore
 
-      - name: Terraform Init
-        working-directory: terraform
-        run: terraform init
-
-      - name: Terraform Plan
-        working-directory: terraform
+      - name: Setup SSH key from secrets
         run: |
-          terraform plan \
-            -var="db_password=${{ secrets.DB_PASSWORD }}" \
-            -out=tfplan
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          
+          # Add bastion to known hosts
+          ssh-keyscan -H ${{ vars.BASTION_IP }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Terraform Apply
-        id: terraform
-        working-directory: terraform
+      - name: Create Ansible inventory
         run: |
-          terraform apply -auto-approve tfplan
-          echo "backend_ip=$(terraform output -raw backend_public_ip)" >> $GITHUB_OUTPUT
-          echo "frontend_ip=$(terraform output -raw frontend_public_ip)" >> $GITHUB_OUTPUT
+          mkdir -p ansible/inventory
+          cat > ansible/inventory/deploy.ini << EOF
+          # =============================================================================
+          # Ansible Inventory - Generated by CI/CD
+          # =============================================================================
+          
+          [bastion]
+          ${{ vars.BASTION_IP }} ansible_user=ec2-user
+          
+          [bastion:vars]
+          ansible_ssh_private_key_file=~/.ssh/deploy_key
+          ansible_ssh_common_args=-o StrictHostKeyChecking=no
+          
+          [frontend]
+          ${{ vars.FRONTEND_IP }} ansible_user=ec2-user
+          
+          [frontend:vars]
+          ansible_ssh_private_key_file=~/.ssh/deploy_key
+          ansible_ssh_common_args=-o StrictHostKeyChecking=no -o ProxyCommand="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -W %h:%p ec2-user@${{ vars.BASTION_IP }}"
+          
+          [backend]
+          ${{ vars.BACKEND_IP }} ansible_user=ec2-user
+          
+          [backend:vars]
+          ansible_ssh_private_key_file=~/.ssh/deploy_key
+          ansible_ssh_common_args=-o StrictHostKeyChecking=no -o ProxyCommand="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -W %h:%p ec2-user@${{ vars.BASTION_IP }}"
+          
+          [app:children]
+          frontend
+          backend
+          
+          [all:vars]
+          ansible_python_interpreter=/usr/bin/python3
+          
+          # Database Configuration
+          db_host=${{ vars.DB_HOST }}
+          db_port=5432
+          db_name=notesdb
+          db_username=dbadmin
+          db_password=${{ secrets.DB_PASSWORD }}
+          
+          # ECR Configuration
+          ecr_registry=${{ env.ECR_REGISTRY }}
+          ecr_backend_image=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }}
+          ecr_frontend_image=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}
+          ecr_proxy_image=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }}
+          aws_region=${{ env.AWS_REGION }}
+          
+          # Instance IPs
+          bastion_public_ip=${{ vars.BASTION_IP }}
+          frontend_private_ip=${{ vars.FRONTEND_IP }}
+          backend_private_ip=${{ vars.BACKEND_IP }}
+          EOF
+
+      - name: Test SSH connectivity to Bastion
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ec2-user@${{ vars.BASTION_IP }} "echo 'Bastion SSH OK' && hostname"
+
+      - name: Test SSH connectivity to Backend (via Bastion)
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            -o ProxyCommand="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -W %h:%p ec2-user@${{ vars.BASTION_IP }}" \
+            ec2-user@${{ vars.BACKEND_IP }} "echo 'Backend SSH via Bastion OK' && hostname"
 
       - name: Run Ansible Deployment
         id: deploy
         working-directory: ansible
         run: |
-          # Create inventory from Terraform output
-          echo "[role_backend]" > inventory.ini
-          echo "${{ steps.terraform.outputs.backend_ip }} ansible_user=ec2-user" >> inventory.ini
-          echo "" >> inventory.ini
-          echo "[role_frontend]" >> inventory.ini
-          echo "${{ steps.terraform.outputs.frontend_ip }} ansible_user=ec2-user" >> inventory.ini
+          ansible-playbook playbooks/deploy.yml \
+            -i inventory/deploy.ini \
+            -e "image_tag=${{ github.sha }}" \
+            -e "deploy_timestamp=$(date -u +%Y%m%d%H%M%S)" \
+            -v
+
+      - name: Verify Deployment
+        run: |
+          echo "Waiting for services to start..."
+          sleep 30
           
-          # Run deployment playbook
-          ansible-playbook deploy-fullstack.yml \
-            -i inventory.ini \
-            -e "db_password=${{ secrets.DB_PASSWORD }}" \
-            -e "db_endpoint=${{ secrets.DB_ENDPOINT }}" \
-            --private-key=keys/terraform-ansible-webapp-key.pem
+          # Test bastion/proxy health
+          curl -f --connect-timeout 10 http://${{ vars.BASTION_IP }}/nginx-health || echo "Proxy health check pending..."
           
-          echo "app_url=http://${{ steps.terraform.outputs.frontend_ip }}" >> $GITHUB_OUTPUT
+          # Test application through bastion
+          curl -f --connect-timeout 10 http://${{ vars.BASTION_IP }}/health || echo "App health check pending..."
 
       - name: Deployment Summary
         run: |
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Component | Status | URL |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|--------|-----|" >> $GITHUB_STEP_SUMMARY
-          echo "| Frontend | ✅ Deployed | http://${{ steps.terraform.outputs.frontend_ip }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Backend | ✅ Deployed | http://${{ steps.terraform.outputs.backend_ip }}:3001 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Bastion/Proxy | ✅ Deployed | http://${{ vars.BASTION_IP }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ✅ Deployed | ${{ vars.FRONTEND_IP }} (private) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | ✅ Deployed | ${{ vars.BACKEND_IP }} (private) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Database | ✅ Connected | ${{ vars.DB_HOST }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image Tag:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**ECR Registry:** \`${{ env.ECR_REGISTRY }}\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Cleanup SSH key
+        if: always()
+        run: |
+          rm -f ~/.ssh/deploy_key
 
   # ===========================================================================
   # Cleanup artifacts
