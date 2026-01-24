@@ -45,6 +45,9 @@ LABEL maintainer="DevOps Team"
 LABEL description="NestJS Backend API for Notes Application"
 LABEL version="1.0.0"
 
+# Install wget for health checks (ensure it's available)
+RUN apk add --no-cache wget
+
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001 -G nodejs
@@ -58,6 +61,9 @@ COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/package*.json ./
 
+# Verify the build - this will fail the build if files are missing
+RUN ls -la /app/dist/ && test -f /app/dist/main.js
+
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=3001
@@ -68,8 +74,8 @@ EXPOSE 3001
 # Switch to non-root user
 USER nestjs
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# Health check with longer start period to allow for DB connection
+HEALTHCHECK --interval=10s --timeout=10s --start-period=60s --retries=6 \
     CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3001/health || exit 1
 
 # Start the application
