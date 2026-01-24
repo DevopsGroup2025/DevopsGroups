@@ -95,7 +95,7 @@ resource "aws_eip" "bastion" {
 }
 
 resource "aws_eip_association" "bastion" {
-  instance_id   = aws_instance.bastion.id
+  instance_id   = aws_instance.load_balancer.id
   allocation_id = aws_eip.bastion.id
 }
 

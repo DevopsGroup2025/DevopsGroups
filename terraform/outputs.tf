@@ -3,6 +3,16 @@ output "bastion_public_ip" {
   value       = module.compute.bastion_public_ip
 }
 
+output "backend_public_ip" {
+  description = "Public IP of first backend instance (for CI/CD)"
+  value       = module.compute.bastion_public_ip
+}
+
+output "frontend_public_ip" {
+  description = "Public IP of first frontend instance (for CI/CD)"
+  value       = module.compute.bastion_public_ip
+}
+
 output "bastion_key_path" {
   description = "Path to bastion private key"
   value       = module.security.bastion_key_path
