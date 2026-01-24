@@ -1084,12 +1084,11 @@ jobs:
 
       - name: Install Ansible
         run: |
-          # Use ansible-core 2.14.x which supports Python 3.7+ on remote hosts
-          # Newer versions (2.15+) require Python 3.8+ on remote hosts
-          pip install 'ansible-core>=2.14,<2.15' boto3 botocore
+          # Use ansible 2.15+ which is compatible with current collections
+          pip install 'ansible>=8.0,<9.0' boto3 botocore
           
-          # Install required Ansible collections
-          ansible-galaxy collection install community.docker community.general
+          # Show ansible version for debugging
+          ansible --version
 
       - name: Setup SSH key from secrets
         run: |
@@ -1156,6 +1155,13 @@ jobs:
           frontend_private_ip=${{ vars.FRONTEND_IP }}
           backend_private_ip=${{ vars.BACKEND_IP }}
           EOF
+
+      - name: Validate Ansible playbook syntax
+        working-directory: ansible
+        run: |
+          echo "Checking playbook syntax..."
+          ansible-playbook playbooks/deploy.yml --syntax-check -i inventory/deploy.ini
+          echo "Syntax check passed!"
 
       - name: Test SSH connectivity to Bastion
         run: |
