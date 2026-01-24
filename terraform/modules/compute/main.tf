@@ -40,7 +40,7 @@ resource "aws_cloudwatch_log_group" "docker_logs" {
 
 
 
-resource "aws_instance" "bastion" {
+resource "aws_instance" "load_balancer" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
   key_name                    = aws_key_pair.main.key_name
@@ -49,7 +49,7 @@ resource "aws_instance" "bastion" {
   iam_instance_profile        = var.iam_instance_profile_name
   associate_public_ip_address = true
   
-  tags = { Name = "bastion-nginx-proxy" }
+  tags = { Name = "load_balancer" }
 }
 
 resource "aws_instance" "frontend" {
@@ -89,8 +89,8 @@ resource "aws_instance" "backend" {
 resource "aws_eip" "bastion" {
   domain = "vpc"
   tags   = { 
-    Name = "bastion-eip"
-    Role = "bastion"
+    Name = "load_balancer"
+    Role = "load_balancer"
      }
 }
 

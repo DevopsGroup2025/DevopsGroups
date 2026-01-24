@@ -54,8 +54,8 @@ resource "aws_security_group" "backend" {
   name_prefix = "backend-sg"
   vpc_id      = var.vpc_id
   ingress {
-    from_port       = 8000
-    to_port         = 8000
+    from_port       = 3001
+    to_port         = 3001
     protocol        = "tcp"
     security_groups = [aws_security_group.bastion.id, aws_security_group.frontend.id]
   }
