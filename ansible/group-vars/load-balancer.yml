@@ -1,0 +1,8 @@
+---
+# Variables for the load balancer servers
+ansible_user: ec2-user
+ansible_ssh_private_key_file: /path/to/terraform-ansible-webapp-key.pem
+
+# Load balancer connects directly via public IP
+# No jump host required
+ansible_ssh_common_args: ""

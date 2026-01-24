@@ -1,12 +1,22 @@
-- name: Deploy Full-Stack Application
-  hosts: all
+# ansible/deploy-fullstack.yml
+---
+- name: Deploy Load Balancer
+  hosts: role_load_balancer
   gather_facts: yes
+  become: yes
+  roles:
+    - role: load_balancer
 
-# First deploy the load balancer (jump server)
-- import_playbook: deploy-load-balancer.yml
+- name: Deploy Backend Services
+  hosts: role_backend
+  gather_facts: yes
+  become: yes
+  roles:
+    - role: backend
 
-# Then deploy backend (through jump host)
-- import_playbook: deploy-backend.yml
-
-# Then deploy frontend (through jump host)
-- import_playbook: deploy-frontend.yml
+- name: Deploy Frontend Services
+  hosts: role_frontend
+  gather_facts: yes
+  become: yes
+  roles:
+    - role: frontend
