@@ -355,6 +355,35 @@ jobs:
           echo "--- Checking node_modules ---"
           docker run --rm "$BACKEND_IMAGE" sh -c "ls /app/node_modules 2>/dev/null | wc -l" || echo "Could not check node_modules"
 
+      - name: Verify frontend image contents
+        run: |
+          echo "=========================================="
+          echo "Inspecting frontend image"
+          echo "=========================================="
+          
+          FRONTEND_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ needs.build.outputs.image-tag }}"
+          echo "Frontend image: $FRONTEND_IMAGE"
+          
+          echo ""
+          echo "--- Checking /app contents ---"
+          docker run --rm --entrypoint sh notes-frontend:latest -c "ls -la /app/" || echo "Could not list /app"
+          
+          echo ""
+          echo "--- Checking if server.js exists ---"
+          docker run --rm --entrypoint sh notes-frontend:latest -c "test -f /app/server.js && echo 'server.js EXISTS' || echo 'server.js MISSING!'" || echo "Could not check"
+          
+          echo ""
+          echo "--- Checking .next directory ---"
+          docker run --rm --entrypoint sh notes-frontend:latest -c "ls -la /app/.next/ 2>/dev/null || echo '.next directory not found'" || echo "Could not check .next"
+          
+          echo ""
+          echo "--- Quick frontend startup test ---"
+          timeout 20 docker run --rm \
+            -e NODE_ENV=production \
+            -e PORT=3000 \
+            -e HOSTNAME=0.0.0.0 \
+            notes-frontend:latest 2>&1 || echo "Container exited (timeout expected)"
+
       - name: Create .env file
         run: |
           cat > .env << EOF
@@ -659,7 +688,46 @@ jobs:
           
           echo ""
           echo "=========================================="
-          echo "Step 3: Starting frontend and proxy"
+          echo "Step 3: Starting frontend"
+          echo "=========================================="
+          docker compose -f docker-compose.test.yml up -d frontend
+          
+          echo "Waiting for frontend to initialize..."
+          for i in {1..12}; do
+            echo ""
+            echo "=========== Frontend check $i/12 ==========="
+            docker compose -f docker-compose.test.yml ps frontend
+            
+            echo ""
+            echo "--- Frontend container state ---"
+            docker inspect notes-frontend --format='Status: {{.State.Status}} | Health: {{.State.Health.Status}} | Running: {{.State.Running}}' 2>/dev/null || echo "Container not ready"
+            
+            if docker compose -f docker-compose.test.yml ps frontend | grep -q "healthy"; then
+              echo "Frontend is healthy!"
+              break
+            fi
+            
+            echo ""
+            echo "--- Frontend logs (last 30 lines) ---"
+            docker compose -f docker-compose.test.yml logs --tail=30 frontend
+            
+            # If unhealthy, show more details
+            if docker compose -f docker-compose.test.yml ps frontend | grep -q "unhealthy"; then
+              echo ""
+              echo "!!! Frontend is UNHEALTHY !!!"
+              echo "--- Full Frontend logs ---"
+              docker compose -f docker-compose.test.yml logs frontend
+              echo ""
+              echo "--- Health check details ---"
+              docker inspect notes-frontend --format='{{json .State.Health}}' 2>/dev/null | jq . 2>/dev/null || echo "Could not get health details"
+            fi
+            
+            sleep 10
+          done
+          
+          echo ""
+          echo "=========================================="
+          echo "Step 4: Starting proxy"
           echo "=========================================="
           docker compose -f docker-compose.test.yml up -d
           
@@ -840,9 +908,17 @@ jobs:
           
           echo ""
           echo "=========================================="
-          echo "6. Frontend Container Logs"
+          echo "6. Frontend Container Logs (FULL)"
           echo "=========================================="
           docker logs notes-frontend 2>&1 || echo "No frontend container logs"
+          
+          echo ""
+          echo "=========================================="
+          echo "6b. Frontend Container Health Details"
+          echo "=========================================="
+          docker inspect notes-frontend --format='{{json .State}}' 2>/dev/null | jq . || \
+            docker inspect notes-frontend --format='{{json .State}}' 2>/dev/null || \
+            echo "Could not inspect frontend container"
           
           echo ""
           echo "=========================================="
