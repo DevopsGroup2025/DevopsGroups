@@ -1,29 +1,27 @@
-output "instance_id" {
-  description = "ID of the EC2 instance"
-  value       = aws_instance.web_server.id
+output "alb_dns_name" {
+  value = aws_lb.main.dns_name
 }
 
-output "instance_public_ip" {
-  description = "Public IP address of the instance"
-  value       = aws_instance.web_server.public_ip
+output "bastion_public_ip" {
+  value = aws_eip.bastion.public_ip
 }
 
-output "instance_public_dns" {
-  description = "Public DNS name of the instance"
-  value       = aws_instance.web_server.public_dns
+output "frontend_private_ip" {
+  value = aws_instance.frontend.private_ip
 }
 
-output "instance_private_ip" {
-  description = "Private IP address of the instance"
-  value       = aws_instance.web_server.private_ip
+output "backend_private_ip" {
+  value = aws_instance.backend.private_ip
 }
 
-output "instance_arn" {
-  description = "ARN of the EC2 instance"
-  value       = aws_instance.web_server.arn
+output "frontend_ecr_repository_url" {
+  value = aws_ecr_repository.frontend.repository_url
 }
 
-output "ami_id" {
-  description = "AMI ID used for the instance"
-  value       = aws_instance.web_server.ami
+output "backend_ecr_repository_url" {
+  value = aws_ecr_repository.backend.repository_url
+}
+
+output "private_key_path" {
+  value = local_file.private_key.filename
 }

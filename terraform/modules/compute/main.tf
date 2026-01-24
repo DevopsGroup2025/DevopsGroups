@@ -1,62 +1,101 @@
-# Compute Module - EC2 Instance
+resource "tls_private_key" "main" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
 
-data "aws_ami" "amazon_linux_2" {
-  most_recent = true
-  owners      = ["amazon"]
+resource "aws_key_pair" "main" {
+  key_name   = "main-keypair"
+  public_key = tls_private_key.main.public_key_openssh
+}
 
-  filter {
-    name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
-  }
+resource "local_file" "private_key" {
+  content  = tls_private_key.main.private_key_pem
+  filename = "${path.module}/main-keypair.pem"
+  file_permission = "0600"
+}
 
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
+resource "aws_ecr_repository" "frontend" {
+  name = "frontend-app"
+}
 
-  filter {
-    name   = "root-device-type"
-    values = ["ebs"]
+resource "aws_ecr_repository" "backend" {
+  name = "backend-app"
+}
+
+resource "aws_lb" "main" {
+  name               = "main-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [var.alb_security_group_id]
+  subnets            = var.public_subnet_ids
+}
+
+resource "aws_lb_target_group" "bastion" {
+  name     = "bastion-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = var.vpc_id
+  health_check {
+    path = "/"
   }
 }
 
-resource "aws_instance" "web_server" {
-  ami           = var.custom_ami != "" ? var.custom_ami : data.aws_ami.amazon_linux_2.id
-  instance_type = var.instance_type
-  key_name      = var.key_pair_name
-  subnet_id     = var.subnet_id
+resource "aws_lb_listener" "main" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = "80"
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.bastion.arn
+  }
+}
 
-  vpc_security_group_ids = var.security_group_ids
+resource "aws_instance" "bastion" {
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = var.instance_type
+  key_name                    = aws_key_pair.main.key_name
+  vpc_security_group_ids      = [var.bastion_security_group_id]
+  subnet_id                   = var.public_subnet_ids[0]
+  iam_instance_profile        = var.iam_instance_profile_name
+  associate_public_ip_address = true
   
-  monitoring              = var.enable_monitoring
-  associate_public_ip_address = var.associate_public_ip
-
-  root_block_device {
-    volume_size           = var.root_volume_size
-    volume_type           = var.root_volume_type
-    delete_on_termination = true
-    encrypted             = var.enable_encryption
-  }
-
-  user_data = var.user_data
-
-  tags = merge(
-    var.common_tags,
-    {
-      Name        = var.instance_name
-      Role        = var.instance_role
-      Environment = var.environment
-    }
-  )
+  tags = { Name = "bastion-nginx-proxy" }
 }
 
-# Create Ansible inventory file
-resource "local_file" "ansible_inventory" {
-  content = templatefile("${path.module}/templates/inventory.tpl", {
-    public_ip        = aws_instance.web_server.public_ip
-    ssh_user         = var.ssh_user
-    private_key_path = var.private_key_path
-    instance_name    = var.instance_name
-  })
-  filename = var.inventory_file_path
+resource "aws_instance" "frontend" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  key_name               = aws_key_pair.main.key_name
+  vpc_security_group_ids = [var.frontend_security_group_id]
+  subnet_id              = var.private_subnet_ids[0]
+  iam_instance_profile   = var.iam_instance_profile_name
+  
+  tags = { Name = "frontend" }
+}
+
+resource "aws_instance" "backend" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  key_name               = aws_key_pair.main.key_name
+  vpc_security_group_ids = [var.backend_security_group_id]
+  subnet_id              = var.private_subnet_ids[1]
+  iam_instance_profile   = var.iam_instance_profile_name
+  
+  tags = { Name = "backend" }
+}
+
+resource "aws_eip" "bastion" {
+  domain = "vpc"
+  tags   = { Name = "bastion-eip" }
+}
+
+resource "aws_eip_association" "bastion" {
+  instance_id   = aws_instance.bastion.id
+  allocation_id = aws_eip.bastion.id
+}
+
+resource "aws_lb_target_group_attachment" "bastion" {
+  target_group_arn = aws_lb_target_group.bastion.arn
+  target_id        = aws_instance.bastion.id
+  port             = 80
 }
