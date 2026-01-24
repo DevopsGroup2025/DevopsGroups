@@ -1,0 +1,11 @@
+- name: Deploy Load Balancer / Jump Server (Nginx)
+  hosts: role_load_balancer
+  become: yes
+
+  vars:
+    project_name: "{{ project_name | default('webapp') }}"
+    app_dir: "/home/{{ ansible_user }}/loadbalancer"
+    lb_port: 80
+
+  roles:
+    - role: webserver

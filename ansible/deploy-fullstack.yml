@@ -2,5 +2,11 @@
   hosts: all
   gather_facts: yes
 
+# First deploy the load balancer (jump server)
+- import_playbook: deploy-load-balancer.yml
+
+# Then deploy backend (through jump host)
 - import_playbook: deploy-backend.yml
+
+# Then deploy frontend (through jump host)
 - import_playbook: deploy-frontend.yml
