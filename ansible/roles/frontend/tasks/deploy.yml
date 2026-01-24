@@ -1,0 +1,25 @@
+---
+- name: Authenticate Docker to ECR
+  ansible.builtin.shell: >
+    aws ecr get-login-password --region {{ ecr_region }}
+    | docker login --username AWS --password-stdin {{ ecr_account_id }}.dkr.ecr.{{ ecr_region }}.amazonaws.com
+  args:
+    warn: false
+
+- name: Pull frontend Docker image
+  community.docker.docker_image:
+    name: "{{ ecr_account_id }}.dkr.ecr.{{ ecr_region }}.amazonaws.com/{{ ecr_repository }}"
+    tag: "{{ docker_image_tag }}"
+    source: pull
+
+- name: Run frontend container
+  community.docker.docker_container:
+    name: frontend
+    image: "{{ ecr_account_id }}.dkr.ecr.{{ ecr_region }}.amazonaws.com/{{ ecr_repository }}:{{ docker_image_tag }}"
+    state: started
+    restart_policy: always
+    env:
+      PORT: "{{ frontend_port }}"
+      BACKEND_API_URL: "http://{{ backend_hosts[0] }}:3001"
+    published_ports:
+      - "{{ frontend_port }}:{{ frontend_port }}"

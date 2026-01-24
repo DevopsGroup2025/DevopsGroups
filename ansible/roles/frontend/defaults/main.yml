@@ -1,15 +1,11 @@
 ---
-# Frontend Role Default Variables
-
-# Application directory
+project_name: webapp
 app_dir: "/home/{{ ansible_user }}/frontend"
-
-# Frontend port
 frontend_port: 3000
 
-# Backend configuration (should be overridden)
-backend_host: "localhost"
-backend_port: 3001
+# ECR settings
+ecr_repository: "frontend"
+ecr_region: "eu-west-1"
+docker_image_tag: "latest"
 
-# Project name
-project_name: "webapp"
+backend_hosts: "{{ groups['role_backend'] | map('extract', hostvars, 'private_ip') | list }}"

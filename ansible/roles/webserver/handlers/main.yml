@@ -1,18 +1,6 @@
-# Webserver Role - Handlers
-
+---
+# Handlers triggered by tasks (like restarting Nginx)
 - name: restart nginx
-  service:
-    name: "{{ webserver_service_name }}"
+  ansible.builtin.service:
+    name: nginx
     state: restarted
-  listen: restart nginx
-
-- name: reload nginx
-  service:
-    name: "{{ webserver_service_name }}"
-    state: reloaded
-  listen: reload nginx
-
-- name: validate nginx config
-  command: nginx -t
-  changed_when: false
-  listen: validate nginx

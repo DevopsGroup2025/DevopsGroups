@@ -1,0 +1,32 @@
+- name: Install Nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Ensure Nginx service is started and enabled
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: yes
+
+- name: Deploy load balancer Nginx config
+  ansible.builtin.template:
+    src: load-balancer-nginx.conf.j2
+    dest: /etc/nginx/sites-available/{{ project_name }}.conf
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart nginx
+
+- name: Enable Nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/{{ project_name }}.conf
+    dest: /etc/nginx/sites-enabled/{{ project_name }}.conf
+    state: link
+  notify: restart nginx
+
+- name: Remove default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: restart nginx

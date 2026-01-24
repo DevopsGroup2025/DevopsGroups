@@ -1,0 +1,34 @@
+# Nginx Load Balancer / Reverse Proxy Configuration
+
+upstream backend_servers {
+{% for host in backend_servers %}
+    server {{ host }}:3001;
+{% endfor %}
+}
+
+upstream frontend_servers {
+{% for host in frontend_servers %}
+    server {{ host }}:3000;
+{% endfor %}
+}
+
+server {
+    listen {{ lb_port }};
+    server_name _;
+
+    # Frontend routing
+    location / {
+        proxy_pass http://frontend_servers;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # API routing to backend
+    location /api/ {
+        proxy_pass http://backend_servers;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
