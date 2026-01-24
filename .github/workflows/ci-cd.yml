@@ -1087,6 +1087,9 @@ jobs:
           # Use ansible-core 2.14.x which supports Python 3.7+ on remote hosts
           # Newer versions (2.15+) require Python 3.8+ on remote hosts
           pip install 'ansible-core>=2.14,<2.15' boto3 botocore
+          
+          # Install required Ansible collections
+          ansible-galaxy collection install community.docker community.general
 
       - name: Setup SSH key from secrets
         run: |
