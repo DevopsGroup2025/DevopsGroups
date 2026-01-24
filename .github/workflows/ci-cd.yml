@@ -1052,8 +1052,13 @@ jobs:
   deploy:
     name: Deploy to AWS
     runs-on: ubuntu-latest
+<<<<<<< HEAD
     needs: push
     if: github.ref == 'refs/heads/main'
+=======
+    needs: [build, push]
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/develop')
+>>>>>>> f8b6645 (aws job added)
     environment:
       name: prod
       url: http://${{ vars.BASTION_IP }}
