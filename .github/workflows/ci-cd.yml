@@ -303,9 +303,66 @@ jobs:
 
       - name: Load Docker images
         run: |
+          echo "=========================================="
+          echo "Loading Docker images from artifacts"
+          echo "=========================================="
+          
+          echo "--- Loading backend image ---"
           docker load -i /tmp/images/backend.tar
+          
+          echo "--- Loading frontend image ---"
           docker load -i /tmp/images/frontend.tar
+          
+          echo "--- Loading proxy image ---"
           docker load -i /tmp/images/proxy.tar
+          
+          echo ""
+          echo "=========================================="
+          echo "All Docker images after loading"
+          echo "=========================================="
+          docker images
+          
+          echo ""
+          echo "--- Images matching our prefix ---"
+          docker images | grep -E "(REPOSITORY|${{ env.IMAGE_PREFIX }})" || echo "No matching images found"
+
+      - name: Verify backend image contents
+        run: |
+          echo "=========================================="
+          echo "Inspecting backend image"
+          echo "=========================================="
+          
+          # Get the image name
+          BACKEND_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ needs.build.outputs.image-tag }}"
+          echo "Backend image: $BACKEND_IMAGE"
+          
+          echo ""
+          echo "--- Image history ---"
+          docker history "$BACKEND_IMAGE" --no-trunc 2>/dev/null | head -20 || echo "Could not get history"
+          
+          echo ""
+          echo "--- Image labels ---"
+          docker inspect "$BACKEND_IMAGE" --format='{{json .Config.Labels}}' 2>/dev/null | jq . 2>/dev/null || echo "Could not get labels"
+          
+          echo ""
+          echo "--- Image CMD/Entrypoint ---"
+          docker inspect "$BACKEND_IMAGE" --format='CMD: {{json .Config.Cmd}} | Entrypoint: {{json .Config.Entrypoint}}' 2>/dev/null || echo "Could not get cmd"
+          
+          echo ""
+          echo "--- Image environment variables ---"
+          docker inspect "$BACKEND_IMAGE" --format='{{json .Config.Env}}' 2>/dev/null | jq . 2>/dev/null || echo "Could not get env"
+          
+          echo ""
+          echo "--- Image exposed ports ---"
+          docker inspect "$BACKEND_IMAGE" --format='{{json .Config.ExposedPorts}}' 2>/dev/null || echo "Could not get ports"
+          
+          echo ""
+          echo "--- Checking if /app/dist/main.js exists in image ---"
+          docker run --rm "$BACKEND_IMAGE" sh -c "ls -la /app/dist/ 2>/dev/null | head -20 || echo 'dist directory not found'" || echo "Could not run container"
+          
+          echo ""
+          echo "--- Checking node_modules ---"
+          docker run --rm "$BACKEND_IMAGE" sh -c "ls /app/node_modules 2>/dev/null | wc -l" || echo "Could not check node_modules"
 
       - name: Create .env file
         run: |
@@ -319,9 +376,50 @@ jobs:
 
       - name: Tag images for docker-compose
         run: |
+          echo "=========================================="
+          echo "Tagging images for docker-compose"
+          echo "=========================================="
+          echo "Image tag from build job: ${{ needs.build.outputs.image-tag }}"
+          echo ""
+          
+          echo "--- Tagging backend ---"
           docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ needs.build.outputs.image-tag }} notes-backend:latest
+          
+          echo "--- Tagging frontend ---"
           docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ needs.build.outputs.image-tag }} notes-frontend:latest
+          
+          echo "--- Tagging proxy ---"
           docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ needs.build.outputs.image-tag }} notes-proxy:latest
+          
+          echo ""
+          echo "=========================================="
+          echo "Images after tagging"
+          echo "=========================================="
+          docker images | grep -E "(REPOSITORY|notes-)" || echo "No notes-* images found"
+
+      - name: Quick backend startup test (isolated)
+        run: |
+          echo "=========================================="
+          echo "Testing backend startup in isolation"
+          echo "=========================================="
+          echo "This tests if the backend can start at all (will fail DB connection but should show app logs)"
+          echo ""
+          
+          # Run backend with fake DB settings just to see if the app starts
+          timeout 30 docker run --rm \
+            -e NODE_ENV=production \
+            -e PORT=3001 \
+            -e DB_HOST=fake-db-host \
+            -e DB_PORT=5432 \
+            -e DB_USERNAME=dbadmin \
+            -e DB_PASSWORD=testpassword123 \
+            -e DB_NAME=notesdb \
+            notes-backend:latest 2>&1 || echo "Container exited (expected - no DB connection)"
+          
+          echo ""
+          echo "--- Quick test complete ---"
+          echo "If you see NestJS startup logs above, the image is built correctly."
+          echo "If you see 'cannot find module' or similar, there's a build issue."
 
       - name: Start services with Docker Compose
         run: |
@@ -361,9 +459,9 @@ jobs:
               healthcheck:
                 test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
                 interval: 10s
-                timeout: 5s
-                retries: 5
-                start_period: 10s
+                timeout: 10s
+                retries: 10
+                start_period: 30s
 
             backend:
               image: notes-backend:latest
@@ -385,9 +483,9 @@ jobs:
               healthcheck:
                 test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
                 interval: 10s
-                timeout: 5s
-                retries: 5
-                start_period: 10s
+                timeout: 10s
+                retries: 12
+                start_period: 30s
 
             database:
               image: postgres:15-alpine
@@ -415,14 +513,211 @@ jobs:
               internal: true
           EOF
           
+          echo ""
+          echo "=========================================="
+          echo "Docker Compose Configuration"
+          echo "=========================================="
+          cat docker-compose.test.yml
+          
+          echo ""
+          echo "=========================================="
+          echo "Checking init.sql file"
+          echo "=========================================="
+          if [ -f "./database/init.sql" ]; then
+            echo "init.sql exists:"
+            head -50 ./database/init.sql
+          else
+            echo "WARNING: init.sql not found!"
+            ls -la ./database/ || echo "database directory not found"
+          fi
+          
+          echo ""
+          echo "=========================================="
+          echo "Step 1: Starting database container"
+          echo "=========================================="
+          docker compose -f docker-compose.test.yml up -d database
+          
+          echo "Waiting for database to initialize..."
+          for i in {1..12}; do
+            echo "--- Database check $i/12 ---"
+            docker compose -f docker-compose.test.yml ps database
+            
+            if docker compose -f docker-compose.test.yml ps database | grep -q "healthy"; then
+              echo "Database is healthy!"
+              break
+            fi
+            
+            echo "Database logs:"
+            docker compose -f docker-compose.test.yml logs --tail=20 database
+            sleep 5
+          done
+          
+          echo ""
+          echo "=========================================="
+          echo "Step 2: Starting backend container"
+          echo "=========================================="
+          docker compose -f docker-compose.test.yml up -d backend
+          
+          echo "Waiting for backend to initialize..."
+          for i in {1..15}; do
+            echo ""
+            echo "=========== Backend check $i/15 ==========="
+            docker compose -f docker-compose.test.yml ps backend
+            
+            # Show container inspect for more details
+            echo ""
+            echo "--- Backend container state ---"
+            docker inspect notes-backend --format='Status: {{.State.Status}} | Health: {{.State.Health.Status}} | Running: {{.State.Running}} | ExitCode: {{.State.ExitCode}}' 2>/dev/null || echo "Container not ready"
+            
+            # Check if container is running at all
+            if ! docker ps | grep -q notes-backend; then
+              echo ""
+              echo "!!! BACKEND CONTAINER IS NOT RUNNING !!!"
+              echo "--- Checking if container exited ---"
+              docker ps -a | grep notes-backend || echo "Container not found at all"
+              echo ""
+              echo "--- Full container logs ---"
+              docker logs notes-backend 2>&1 || echo "Could not get logs"
+              echo ""
+              echo "--- Container inspect ---"
+              docker inspect notes-backend 2>&1 | head -100 || echo "Could not inspect"
+            fi
+            
+            if docker compose -f docker-compose.test.yml ps backend | grep -q "healthy"; then
+              echo "Backend is healthy!"
+              break
+            fi
+            
+            # Show recent logs
+            echo ""
+            echo "--- Backend logs (last 40 lines) ---"
+            docker compose -f docker-compose.test.yml logs --tail=40 backend
+            
+            # Try to check if the app is listening
+            echo ""
+            echo "--- Checking if backend is listening on port 3001 ---"
+            docker exec notes-backend sh -c "wget -q --spider http://localhost:3001/health && echo 'Health endpoint OK' || echo 'Health endpoint FAILED'" 2>/dev/null || echo "Could not exec into container"
+            
+            # Check network connectivity to database
+            echo ""
+            echo "--- Checking database connectivity from backend ---"
+            docker exec notes-backend sh -c "wget -q --spider --timeout=2 http://database:5432 2>&1 || echo 'DB port check (expected to fail for HTTP)'" 2>/dev/null || echo "Could not exec into container"
+            
+            # Check environment variables in the container
+            echo ""
+            echo "--- Backend environment variables ---"
+            docker exec notes-backend sh -c "env | grep -E '(DB_|NODE_|PORT)' | sort" 2>/dev/null || echo "Could not get env vars"
+            
+            # Check what processes are running
+            echo ""
+            echo "--- Processes in backend container ---"
+            docker exec notes-backend sh -c "ps aux 2>/dev/null || ps" 2>/dev/null || echo "Could not get processes"
+            
+            # If unhealthy, show more details
+            if docker compose -f docker-compose.test.yml ps backend | grep -q "unhealthy"; then
+              echo ""
+              echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+              echo "!!! Backend is UNHEALTHY !!!"
+              echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+              echo ""
+              echo "--- FULL Backend logs ---"
+              docker compose -f docker-compose.test.yml logs backend
+              
+              echo ""
+              echo "--- Health check output details ---"
+              docker inspect notes-backend --format='{{json .State.Health}}' 2>/dev/null | jq . 2>/dev/null || docker inspect notes-backend --format='{{json .State.Health}}' || echo "Could not get health details"
+              
+              echo ""
+              echo "--- Container network settings ---"
+              docker inspect notes-backend --format='{{json .NetworkSettings.Networks}}' 2>/dev/null | jq . 2>/dev/null || echo "Could not get network info"
+            fi
+            
+            sleep 10
+          done
+          
+          echo ""
+          echo "=========================================="
+          echo "Backend startup complete - Final Status"
+          echo "=========================================="
+          docker compose -f docker-compose.test.yml ps backend
+          echo ""
+          echo "--- Final backend logs ---"
+          docker compose -f docker-compose.test.yml logs --tail=50 backend
+          
+          echo ""
+          echo "=========================================="
+          echo "Step 3: Starting frontend and proxy"
+          echo "=========================================="
           docker compose -f docker-compose.test.yml up -d
+          
+          echo ""
+          echo "=========================================="
+          echo "All containers status after startup"
+          echo "=========================================="
+          docker compose -f docker-compose.test.yml ps
+          docker ps -a
 
       - name: Wait for services to be healthy
         run: |
-          echo "Waiting for services to be healthy..."
-          timeout 120 bash -c 'until docker compose -f docker-compose.test.yml ps | grep -q "healthy"; do sleep 5; done' || true
-          sleep 30
+          echo "=========================================="
+          echo "Waiting for all services to be healthy"
+          echo "=========================================="
+          
+          # Wait with timeout, show status periodically
+          for i in {1..30}; do
+            echo ""
+            echo "=========================================="
+            echo "Health Check Round $i/30 ($(date))"
+            echo "=========================================="
+            
+            echo "--- Container Status ---"
+            docker compose -f docker-compose.test.yml ps
+            
+            echo ""
+            echo "--- Docker ps -a ---"
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            
+            # Count healthy containers
+            HEALTHY_COUNT=$(docker ps --filter "health=healthy" --format "{{.Names}}" | wc -l)
+            UNHEALTHY_COUNT=$(docker ps --filter "health=unhealthy" --format "{{.Names}}" | wc -l)
+            STARTING_COUNT=$(docker ps --filter "health=starting" --format "{{.Names}}" | wc -l)
+            
+            echo ""
+            echo "Health Summary: Healthy=$HEALTHY_COUNT, Unhealthy=$UNHEALTHY_COUNT, Starting=$STARTING_COUNT"
+            
+            # If any unhealthy, show their logs
+            if [ "$UNHEALTHY_COUNT" -gt 0 ]; then
+              echo ""
+              echo "!!! UNHEALTHY CONTAINERS DETECTED !!!"
+              UNHEALTHY_CONTAINERS=$(docker ps --filter "health=unhealthy" --format "{{.Names}}")
+              for container in $UNHEALTHY_CONTAINERS; do
+                echo ""
+                echo "--- Logs for UNHEALTHY container: $container ---"
+                docker logs $container --tail=50
+                echo ""
+                echo "--- Health check details for: $container ---"
+                docker inspect $container --format='{{json .State.Health}}' | jq . 2>/dev/null || docker inspect $container --format='{{json .State.Health}}'
+              done
+            fi
+            
+            # Check if all 4 services are healthy
+            if [ "$HEALTHY_COUNT" -ge 4 ]; then
+              echo ""
+              echo "=========================================="
+              echo "SUCCESS: All services are healthy!"
+              echo "=========================================="
+              break
+            fi
+            
+            sleep 10
+          done
+          
+          echo ""
+          echo "=========================================="
+          echo "Final Status Check"
+          echo "=========================================="
           docker compose -f docker-compose.test.yml ps
+          docker ps -a
 
       - name: Test backend health endpoint
         run: |
@@ -494,10 +789,98 @@ jobs:
       - name: Collect logs on failure
         if: failure()
         run: |
-          echo "=== Docker Compose Logs ==="
-          docker compose -f docker-compose.test.yml logs
-          echo "=== Container Status ==="
-          docker ps -a
+          echo "=========================================="
+          echo "FAILURE DIAGNOSTICS"
+          echo "=========================================="
+          
+          echo ""
+          echo "=========================================="
+          echo "1. Container Status Overview"
+          echo "=========================================="
+          docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
+          
+          echo ""
+          echo "=========================================="
+          echo "2. Docker Compose Status"
+          echo "=========================================="
+          docker compose -f docker-compose.test.yml ps 2>/dev/null || echo "Compose file not available"
+          
+          echo ""
+          echo "=========================================="
+          echo "3. Database Container Logs"
+          echo "=========================================="
+          docker logs notes-database 2>&1 || echo "No database container logs"
+          
+          echo ""
+          echo "=========================================="
+          echo "4. Backend Container Logs (FULL)"
+          echo "=========================================="
+          docker logs notes-backend 2>&1 || echo "No backend container logs"
+          
+          echo ""
+          echo "=========================================="
+          echo "5. Backend Container Health Details"
+          echo "=========================================="
+          docker inspect notes-backend --format='{{json .State}}' 2>/dev/null | jq . || \
+            docker inspect notes-backend --format='{{json .State}}' 2>/dev/null || \
+            echo "Could not inspect backend container"
+          
+          echo ""
+          echo "=========================================="
+          echo "6. Frontend Container Logs"
+          echo "=========================================="
+          docker logs notes-frontend 2>&1 || echo "No frontend container logs"
+          
+          echo ""
+          echo "=========================================="
+          echo "7. Proxy Container Logs"
+          echo "=========================================="
+          docker logs notes-proxy 2>&1 || echo "No proxy container logs"
+          
+          echo ""
+          echo "=========================================="
+          echo "8. Network Configuration"
+          echo "=========================================="
+          docker network ls
+          echo ""
+          echo "--- Frontend network ---"
+          docker network inspect docker-compose-test_frontend 2>/dev/null || docker network inspect integration-test_frontend 2>/dev/null || echo "Frontend network not found"
+          echo ""
+          echo "--- Backend network ---"
+          docker network inspect docker-compose-test_backend 2>/dev/null || docker network inspect integration-test_backend 2>/dev/null || echo "Backend network not found"
+          
+          echo ""
+          echo "=========================================="
+          echo "9. Container Resource Usage"
+          echo "=========================================="
+          docker stats --no-stream 2>/dev/null || echo "Could not get stats"
+          
+          echo ""
+          echo "=========================================="
+          echo "10. System Resources"
+          echo "=========================================="
+          df -h
+          free -m 2>/dev/null || echo "free command not available"
+
+      - name: Final container logs (always)
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "FINAL STATE - All Container Logs"
+          echo "=========================================="
+          
+          echo ""
+          echo "--- Final container status ---"
+          docker ps -a --format "table {{.Names}}\t{{.Status}}" 2>/dev/null || true
+          
+          echo ""
+          echo "--- Backend logs (last 100 lines) ---"
+          docker logs notes-backend --tail=100 2>&1 || echo "No backend logs"
+          
+          echo ""
+          echo "--- Database logs (last 50 lines) ---"
+          docker logs notes-database --tail=50 2>&1 || echo "No database logs"
+        continue-on-error: true
 
       - name: Cleanup
         if: always()
