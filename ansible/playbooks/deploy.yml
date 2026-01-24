@@ -124,19 +124,19 @@
       changed_when: "'Login Succeeded' in ecr_login.stdout"
 
     - name: Pull backend image
-      docker_image:
+      community.docker.docker_image:
         name: "{{ ecr_backend_image }}"
         source: pull
         force_source: yes
 
     - name: Stop existing backend container
-      docker_container:
+      community.docker.docker_container:
         name: backend
         state: absent
       ignore_errors: yes
 
     - name: Run backend container
-      docker_container:
+      community.docker.docker_container:
         name: backend
         image: "{{ ecr_backend_image }}"
         state: started
@@ -189,19 +189,19 @@
       changed_when: "'Login Succeeded' in ecr_login.stdout"
 
     - name: Pull frontend image
-      docker_image:
+      community.docker.docker_image:
         name: "{{ ecr_frontend_image }}"
         source: pull
         force_source: yes
 
     - name: Stop existing frontend container
-      docker_container:
+      community.docker.docker_container:
         name: frontend
         state: absent
       ignore_errors: yes
 
     - name: Run frontend container
-      docker_container:
+      community.docker.docker_container:
         name: frontend
         image: "{{ ecr_frontend_image }}"
         state: started
@@ -249,7 +249,7 @@
       changed_when: "'Login Succeeded' in ecr_login.stdout"
 
     - name: Pull proxy image
-      docker_image:
+      community.docker.docker_image:
         name: "{{ ecr_proxy_image }}"
         source: pull
         force_source: yes
@@ -342,13 +342,13 @@
         mode: '0644'
 
     - name: Stop existing proxy container
-      docker_container:
+      community.docker.docker_container:
         name: proxy
         state: absent
       ignore_errors: yes
 
     - name: Run nginx proxy container
-      docker_container:
+      community.docker.docker_container:
         name: proxy
         image: nginx:alpine
         state: started
