@@ -16,10 +16,10 @@ resource "aws_db_instance" "main" {
   identifier = var.db_identifier
 
   # Engine
-  engine               = var.engine
-  engine_version       = var.engine_version
-  instance_class       = var.instance_class
-  
+  engine         = var.engine
+  engine_version = var.engine_version
+  instance_class = var.instance_class
+
   # Storage
   allocated_storage     = var.allocated_storage
   max_allocated_storage = var.max_allocated_storage
@@ -41,15 +41,15 @@ resource "aws_db_instance" "main" {
   backup_retention_period = var.backup_retention_period
   backup_window           = var.backup_window
   maintenance_window      = var.maintenance_window
-  
+
   # Monitoring
   enabled_cloudwatch_logs_exports = var.enabled_cloudwatch_logs_exports
   monitoring_interval             = var.monitoring_interval
   monitoring_role_arn             = var.monitoring_interval > 0 ? aws_iam_role.rds_monitoring[0].arn : null
 
   # High Availability
-  multi_az               = var.multi_az
-  
+  multi_az = var.multi_az
+
   # Deletion Protection
   deletion_protection       = var.deletion_protection
   skip_final_snapshot       = var.skip_final_snapshot
@@ -76,7 +76,7 @@ resource "aws_db_instance" "main" {
 # IAM Role for Enhanced Monitoring
 resource "aws_iam_role" "rds_monitoring" {
   count = var.monitoring_interval > 0 ? 1 : 0
-  
+
   name = "${var.db_identifier}-rds-monitoring-role"
 
   assume_role_policy = jsonencode({
@@ -97,7 +97,7 @@ resource "aws_iam_role" "rds_monitoring" {
 
 resource "aws_iam_role_policy_attachment" "rds_monitoring" {
   count = var.monitoring_interval > 0 ? 1 : 0
-  
+
   role       = aws_iam_role.rds_monitoring[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
