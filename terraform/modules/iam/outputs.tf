@@ -31,3 +31,4 @@ output "bastion_instance_profile_name" {
   description = "Name of the bastion instance profile"
   value       = var.create_bastion_role ? aws_iam_instance_profile.bastion_profile[0].name : null
 }
+

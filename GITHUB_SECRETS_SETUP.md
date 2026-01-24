@@ -243,3 +243,4 @@ After your Terraform deployment, these are your current values:
    - `aws_session_token` → `AWS_SESSION_TOKEN` secret
 
 **Note:** AWS Academy session tokens expire every ~4 hours. You'll need to update them when they expire.
+

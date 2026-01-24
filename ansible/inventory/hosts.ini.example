@@ -78,3 +78,4 @@ aws_region=eu-west-1
 bastion_public_ip=<bastion_public_ip>
 frontend_private_ip=<frontend_private_ip>
 backend_private_ip=<backend_private_ip>
+

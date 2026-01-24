@@ -26,3 +26,4 @@ output "registry_url" {
   description = "The ECR registry URL (without repository name)"
   value       = length(aws_ecr_repository.main) > 0 ? split("/", values(aws_ecr_repository.main)[0].repository_url)[0] : null
 }
+

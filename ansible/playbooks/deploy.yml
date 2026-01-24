@@ -379,3 +379,4 @@
           Backend Health: http://{{ bastion_public_ip }}/health
           API Endpoint: http://{{ bastion_public_ip }}/api/notes
           ============================================
+
