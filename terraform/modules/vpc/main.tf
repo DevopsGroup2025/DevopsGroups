@@ -143,11 +143,11 @@ resource "aws_route_table_association" "private" {
 
 # VPC Flow Logs (optional)
 resource "aws_flow_log" "main" {
-  count                = var.enable_flow_logs ? 1 : 0
-  iam_role_arn         = var.enable_flow_logs ? aws_iam_role.flow_logs[0].arn : null
-  log_destination      = var.enable_flow_logs ? aws_cloudwatch_log_group.flow_logs[0].arn : null
-  traffic_type         = "ALL"
-  vpc_id               = aws_vpc.main.id
+  count           = var.enable_flow_logs ? 1 : 0
+  iam_role_arn    = var.enable_flow_logs ? aws_iam_role.flow_logs[0].arn : null
+  log_destination = var.enable_flow_logs ? aws_cloudwatch_log_group.flow_logs[0].arn : null
+  traffic_type    = "ALL"
+  vpc_id          = aws_vpc.main.id
 
   tags = merge(
     var.common_tags,

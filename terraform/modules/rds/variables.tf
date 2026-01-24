@@ -12,7 +12,7 @@ variable "engine" {
 variable "engine_version" {
   description = "Database engine version"
   type        = string
-  default     = "16"  # PostgreSQL 16 - AWS will use latest available minor version
+  default     = "16" # PostgreSQL 16 - AWS will use latest available minor version
 }
 
 variable "instance_class" {

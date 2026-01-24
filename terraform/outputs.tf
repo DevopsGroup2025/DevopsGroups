@@ -1,9 +1,15 @@
+# =============================================================================
+# Terraform Outputs
+# =============================================================================
+
 output "region" {
   description = "AWS region used for deployment"
   value       = var.aws_region
 }
 
+# =============================================================================
 # VPC Outputs
+# =============================================================================
 output "vpc_id" {
   description = "ID of the VPC"
   value       = module.vpc.vpc_id
@@ -24,7 +30,9 @@ output "private_subnet_ids" {
   value       = module.vpc.private_subnet_ids
 }
 
+# =============================================================================
 # Key Outputs
+# =============================================================================
 output "key_name" {
   description = "EC2 key pair name"
   value       = module.keys.key_pair_name
@@ -35,20 +43,12 @@ output "private_key_path" {
   value       = module.keys.private_key_path
 }
 
+# =============================================================================
 # Project Outputs
+# =============================================================================
 output "project_name" {
   description = "Project name used for tagging"
   value       = var.project_name
-}
-
-output "public_ip" {
-  description = "Public IP address of the EC2 instance"
-  value       = module.compute.instance_public_ip
-}
-
-output "public_dns" {
-  description = "Public DNS name of the EC2 instance"
-  value       = module.compute.instance_public_dns
 }
 
 output "ssh_user" {
@@ -56,30 +56,40 @@ output "ssh_user" {
   value       = var.ssh_user
 }
 
-output "instance_id" {
-  description = "ID of the EC2 instance"
-  value       = module.compute.instance_id
+# =============================================================================
+# Bastion Host Outputs (Public - Entry Point)
+# =============================================================================
+output "bastion_public_ip" {
+  description = "Public IP address of the bastion/load balancer host"
+  value       = module.bastion.instance_public_ip
 }
 
-output "security_group_id" {
-  description = "ID of the security group"
-  value       = module.networking.security_group_id
+output "bastion_public_dns" {
+  description = "Public DNS name of the bastion host"
+  value       = module.bastion.instance_public_dns
 }
 
-output "ssh_command" {
-  description = "SSH command to connect to the instance"
-  value       = "ssh -i ${module.keys.private_key_path} ${var.ssh_user}@${module.compute.instance_public_ip}"
+output "bastion_instance_id" {
+  description = "ID of the bastion EC2 instance"
+  value       = module.bastion.instance_id
+}
+
+output "ssh_command_bastion" {
+  description = "SSH command to connect to the bastion host"
+  value       = "ssh -i ${module.keys.private_key_path} ${var.ssh_user}@${module.bastion.instance_public_ip}"
 }
 
 output "web_url" {
-  description = "URL to access the web application"
-  value       = "http://${module.compute.instance_public_ip}"
+  description = "URL to access the web application (via bastion/load balancer)"
+  value       = "http://${module.bastion.instance_public_ip}"
 }
 
-# Frontend Outputs
-output "frontend_public_ip" {
-  description = "Public IP address of the frontend server"
-  value       = module.frontend.instance_public_ip
+# =============================================================================
+# Frontend Outputs (Private Subnet)
+# =============================================================================
+output "frontend_private_ip" {
+  description = "Private IP address of the frontend server"
+  value       = module.frontend.instance_private_ip
 }
 
 output "frontend_instance_id" {
@@ -87,17 +97,14 @@ output "frontend_instance_id" {
   value       = module.frontend.instance_id
 }
 
-output "frontend_url" {
-  description = "URL to access the Next.js frontend"
-  value       = "http://${module.frontend.instance_public_ip}:3000"
+output "ssh_command_frontend" {
+  description = "SSH command to connect to frontend (via bastion)"
+  value       = "ssh -i ${module.keys.private_key_path} -J ${var.ssh_user}@${module.bastion.instance_public_ip} ${var.ssh_user}@${module.frontend.instance_private_ip}"
 }
 
-# Backend Outputs
-output "backend_public_ip" {
-  description = "Public IP address of the backend server"
-  value       = module.backend.instance_public_ip
-}
-
+# =============================================================================
+# Backend Outputs (Private Subnet)
+# =============================================================================
 output "backend_private_ip" {
   description = "Private IP address of the backend server"
   value       = module.backend.instance_private_ip
@@ -108,12 +115,14 @@ output "backend_instance_id" {
   value       = module.backend.instance_id
 }
 
-output "backend_api_url" {
-  description = "URL to access the NestJS API"
-  value       = "http://${module.backend.instance_public_ip}:3001"
+output "ssh_command_backend" {
+  description = "SSH command to connect to backend (via bastion)"
+  value       = "ssh -i ${module.keys.private_key_path} -J ${var.ssh_user}@${module.bastion.instance_public_ip} ${var.ssh_user}@${module.backend.instance_private_ip}"
 }
 
+# =============================================================================
 # Database Outputs
+# =============================================================================
 output "database_endpoint" {
   description = "RDS instance endpoint"
   value       = module.database.db_instance_endpoint
@@ -135,8 +144,75 @@ output "database_name" {
   value       = module.database.db_name
 }
 
-output "database_connection_string" {
-  description = "PostgreSQL connection string (without password)"
-  value       = "postgresql://${module.database.db_username}@${module.database.db_instance_address}:${module.database.db_instance_port}/${module.database.db_name}"
-  sensitive   = true
+# =============================================================================
+# ECR Outputs
+# =============================================================================
+output "ecr_registry_url" {
+  description = "ECR registry URL (use for docker login)"
+  value       = module.ecr.registry_url
+}
+
+output "ecr_repository_urls" {
+  description = "Map of ECR repository URLs for each service"
+  value       = module.ecr.repository_urls
+}
+
+output "ecr_repository_names" {
+  description = "Map of ECR repository names"
+  value       = module.ecr.repository_names
+}
+
+# =============================================================================
+# IAM Outputs
+# =============================================================================
+output "ec2_instance_profile_name" {
+  description = "Name of the EC2 instance profile"
+  value       = module.iam.ec2_instance_profile_name
+}
+
+# =============================================================================
+# Security Group Outputs
+# =============================================================================
+output "alb_security_group_id" {
+  description = "ID of the ALB/Bastion security group"
+  value       = module.networking.alb_security_group_id
+}
+
+output "application_security_group_id" {
+  description = "ID of the application security group"
+  value       = module.networking.application_security_group_id
+}
+
+output "database_security_group_id" {
+  description = "ID of the database security group"
+  value       = module.networking.database_security_group_id
+}
+
+# =============================================================================
+# Ansible Inventory Helpers
+# =============================================================================
+output "ansible_inventory" {
+  description = "Ansible inventory content for all hosts"
+  value       = <<-EOT
+    [bastion]
+    ${module.bastion.instance_public_ip} ansible_user=${var.ssh_user}
+    
+    [frontend]
+    ${module.frontend.instance_private_ip} ansible_user=${var.ssh_user}
+    
+    [backend]
+    ${module.backend.instance_private_ip} ansible_user=${var.ssh_user}
+    
+    [app:children]
+    frontend
+    backend
+    
+    [all:vars]
+    ansible_ssh_private_key_file=${module.keys.private_key_path}
+    ansible_ssh_common_args='-o ProxyJump=${var.ssh_user}@${module.bastion.instance_public_ip}'
+    db_host=${module.database.db_instance_address}
+    db_port=${module.database.db_instance_port}
+    db_name=${module.database.db_name}
+    ecr_registry=${module.ecr.registry_url}
+  EOT
 }

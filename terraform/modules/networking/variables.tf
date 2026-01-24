@@ -43,3 +43,15 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "vpc_cidr" {
+  description = "VPC CIDR block for internal traffic rules"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "bastion_ssh_cidr_blocks" {
+  description = "CIDR blocks allowed to SSH to bastion host"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
