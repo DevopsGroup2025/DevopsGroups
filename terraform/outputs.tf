@@ -1,8 +1,3 @@
-output "alb_dns_name" {
-  description = "DNS name of the load balancer"
-  value       = module.compute.alb_dns_name
-}
-
 output "bastion_public_ip" {
   description = "Public IP of bastion instance"
   value       = module.compute.bastion_public_ip

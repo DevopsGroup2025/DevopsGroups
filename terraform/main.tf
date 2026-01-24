@@ -36,7 +36,6 @@ module "compute" {
   vpc_id                     = module.vpc.vpc_id
   public_subnet_ids          = module.vpc.public_subnet_ids
   private_subnet_ids         = module.vpc.private_subnet_ids
-  alb_security_group_id      = module.security.alb_security_group_id
   bastion_security_group_id  = module.security.bastion_security_group_id
   frontend_security_group_id = module.security.frontend_security_group_id
   backend_security_group_id  = module.security.backend_security_group_id
