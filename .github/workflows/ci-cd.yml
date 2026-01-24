@@ -205,7 +205,7 @@ jobs:
           mkdir -p /tmp/images
           docker save ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }} -o /tmp/images/backend.tar
           docker save ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }} -o /tmp/images/frontend.tar
-          docker save ${{ .ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }} -o /tmp/images/proxy.tar
+          docker save ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ github.sha }} -o /tmp/images/proxy.tar
 
       - name: Upload images artifact
         uses: actions/upload-artifact@v4
