@@ -65,5 +65,80 @@ resource "aws_route_table_association" "public" {
 resource "aws_route_table_association" "private" {
   count          = 2
   subnet_id      = aws_subnet.private[count.index].id
+<<<<<<< HEAD
   route_table_id = aws_route_table.private.id
 }
+=======
+  route_table_id = var.enable_nat_gateway ? (var.single_nat_gateway ? aws_route_table.private[0].id : aws_route_table.private[count.index].id) : aws_route_table.private[count.index].id
+}
+
+# VPC Flow Logs (optional)
+resource "aws_flow_log" "main" {
+  count           = var.enable_flow_logs ? 1 : 0
+  iam_role_arn    = var.enable_flow_logs ? aws_iam_role.flow_logs[0].arn : null
+  log_destination = var.enable_flow_logs ? aws_cloudwatch_log_group.flow_logs[0].arn : null
+  traffic_type    = "ALL"
+  vpc_id          = aws_vpc.main.id
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.vpc_name}-flow-logs"
+    }
+  )
+}
+
+# CloudWatch Log Group for VPC Flow Logs
+resource "aws_cloudwatch_log_group" "flow_logs" {
+  count             = var.enable_flow_logs ? 1 : 0
+  name              = "/aws/vpc/${var.vpc_name}"
+  retention_in_days = var.flow_logs_retention_days
+
+  tags = var.common_tags
+}
+
+# IAM Role for VPC Flow Logs
+resource "aws_iam_role" "flow_logs" {
+  count = var.enable_flow_logs ? 1 : 0
+  name  = "${var.vpc_name}-flow-logs-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "vpc-flow-logs.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = var.common_tags
+}
+
+# IAM Role Policy for VPC Flow Logs
+resource "aws_iam_role_policy" "flow_logs" {
+  count = var.enable_flow_logs ? 1 : 0
+  name  = "${var.vpc_name}-flow-logs-policy"
+  role  = aws_iam_role.flow_logs[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      }
+    ]
+  })
+}
+>>>>>>> 75f3543 (full clear workflow)

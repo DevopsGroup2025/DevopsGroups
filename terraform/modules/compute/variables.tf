@@ -41,3 +41,15 @@ variable "backend_instance_count" {
   type        = number
   default     = 2
 }
+
+variable "iam_instance_profile" {
+  description = "IAM instance profile name to attach to the EC2 instance"
+  type        = string
+  default     = ""
+}
+
+variable "enable_ebs_optimization" {
+  description = "Enable EBS optimization for the instance"
+  type        = bool
+  default     = false
+}
