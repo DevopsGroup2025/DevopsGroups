@@ -1,0 +1,13 @@
+# Install Docker if not present
+- name: Install Docker
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - awscli
+    state: present
+    update_cache: yes
+- name: Ensure Docker service is running
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: yes
