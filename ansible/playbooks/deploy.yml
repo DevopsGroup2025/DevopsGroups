@@ -91,12 +91,6 @@
         groups: docker
         append: yes
 
-    - name: Install Docker SDK for Python
-      pip:
-        name: docker
-        state: present
-        executable: pip3
-
     - name: Install AWS CLI v2
       shell: |
         if ! command -v aws &> /dev/null; then
@@ -124,40 +118,39 @@
       changed_when: "'Login Succeeded' in ecr_login.stdout"
 
     - name: Pull backend image
-      community.docker.docker_image:
-        name: "{{ ecr_backend_image }}"
-        source: pull
-        force_source: yes
+      shell: docker pull "{{ ecr_backend_image }}"
+      register: pull_result
+      retries: 3
+      delay: 5
+      until: pull_result.rc == 0
 
-    - name: Stop existing backend container
-      community.docker.docker_container:
-        name: backend
-        state: absent
+    - name: Stop and remove existing backend container
+      shell: |
+        docker stop backend 2>/dev/null || true
+        docker rm backend 2>/dev/null || true
       ignore_errors: yes
 
     - name: Run backend container
-      community.docker.docker_container:
-        name: backend
-        image: "{{ ecr_backend_image }}"
-        state: started
-        restart_policy: unless-stopped
-        ports:
-          - "3001:3001"
-        env:
-          NODE_ENV: "production"
-          PORT: "3001"
-          DB_HOST: "{{ db_host }}"
-          DB_PORT: "{{ db_port }}"
-          DB_USERNAME: "{{ db_username }}"
-          DB_PASSWORD: "{{ db_password }}"
-          DB_NAME: "{{ db_name }}"
-          DB_SSL: "true"
-        healthcheck:
-          test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/health"]
-          interval: 30s
-          timeout: 10s
-          retries: 3
-          start_period: 30s
+      shell: |
+        docker run -d \
+          --name backend \
+          --restart unless-stopped \
+          -p 3001:3001 \
+          -e NODE_ENV=production \
+          -e PORT=3001 \
+          -e DB_HOST="{{ db_host }}" \
+          -e DB_PORT="{{ db_port }}" \
+          -e DB_USERNAME="{{ db_username }}" \
+          -e DB_PASSWORD="{{ db_password }}" \
+          -e DB_NAME="{{ db_name }}" \
+          -e DB_SSL=true \
+          --health-cmd="wget --no-verbose --tries=1 --spider http://127.0.0.1:3001/health || exit 1" \
+          --health-interval=30s \
+          --health-timeout=10s \
+          --health-retries=3 \
+          --health-start-period=30s \
+          "{{ ecr_backend_image }}"
+      register: container_result
 
     - name: Wait for backend to be healthy
       uri:
@@ -189,35 +182,32 @@
       changed_when: "'Login Succeeded' in ecr_login.stdout"
 
     - name: Pull frontend image
-      community.docker.docker_image:
-        name: "{{ ecr_frontend_image }}"
-        source: pull
-        force_source: yes
+      shell: docker pull "{{ ecr_frontend_image }}"
+      register: pull_result
+      retries: 3
+      delay: 5
+      until: pull_result.rc == 0
 
-    - name: Stop existing frontend container
-      community.docker.docker_container:
-        name: frontend
-        state: absent
+    - name: Stop and remove existing frontend container
+      shell: |
+        docker stop frontend 2>/dev/null || true
+        docker rm frontend 2>/dev/null || true
       ignore_errors: yes
 
     - name: Run frontend container
-      community.docker.docker_container:
-        name: frontend
-        image: "{{ ecr_frontend_image }}"
-        state: started
-        restart_policy: unless-stopped
-        ports:
-          - "3000:3000"
-        env:
-          NODE_ENV: "production"
-          # Note: NEXT_PUBLIC_* are build-time vars. The frontend uses /api as default
-          # which nginx on bastion will route to the backend
-        healthcheck:
-          test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
-          interval: 30s
-          timeout: 10s
-          retries: 3
-          start_period: 30s
+      shell: |
+        docker run -d \
+          --name frontend \
+          --restart unless-stopped \
+          -p 3000:3000 \
+          -e NODE_ENV=production \
+          --health-cmd="wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1" \
+          --health-interval=30s \
+          --health-timeout=10s \
+          --health-retries=3 \
+          --health-start-period=30s \
+          "{{ ecr_frontend_image }}"
+      register: container_result
 
     - name: Wait for frontend to be healthy
       uri:
@@ -248,11 +238,12 @@
       register: ecr_login
       changed_when: "'Login Succeeded' in ecr_login.stdout"
 
-    - name: Pull proxy image
-      community.docker.docker_image:
-        name: "{{ ecr_proxy_image }}"
-        source: pull
-        force_source: yes
+    - name: Pull nginx image
+      shell: docker pull nginx:alpine
+      register: pull_result
+      retries: 3
+      delay: 5
+      until: pull_result.rc == 0
 
     - name: Create nginx config directory
       file:
@@ -341,28 +332,26 @@
           }
         mode: '0644'
 
-    - name: Stop existing proxy container
-      community.docker.docker_container:
-        name: proxy
-        state: absent
+    - name: Stop and remove existing proxy container
+      shell: |
+        docker stop proxy 2>/dev/null || true
+        docker rm proxy 2>/dev/null || true
       ignore_errors: yes
 
     - name: Run nginx proxy container
-      community.docker.docker_container:
-        name: proxy
-        image: nginx:alpine
-        state: started
-        restart_policy: unless-stopped
-        ports:
-          - "80:80"
-        volumes:
-          - /etc/nginx/nginx-aws.conf:/etc/nginx/nginx.conf:ro
-        healthcheck:
-          test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/nginx-health"]
-          interval: 30s
-          timeout: 10s
-          retries: 3
-          start_period: 10s
+      shell: |
+        docker run -d \
+          --name proxy \
+          --restart unless-stopped \
+          -p 80:80 \
+          -v /etc/nginx/nginx-aws.conf:/etc/nginx/nginx.conf:ro \
+          --health-cmd="wget --no-verbose --tries=1 --spider http://127.0.0.1/nginx-health || exit 1" \
+          --health-interval=30s \
+          --health-timeout=10s \
+          --health-retries=3 \
+          --health-start-period=10s \
+          nginx:alpine
+      register: container_result
 
     - name: Wait for proxy to be healthy
       uri:
