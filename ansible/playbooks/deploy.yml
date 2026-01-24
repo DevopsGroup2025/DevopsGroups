@@ -1,0 +1,381 @@
+---
+# =============================================================================
+# Ansible Playbook - Deploy Application from ECR
+# =============================================================================
+# This playbook deploys the containerized application to AWS infrastructure
+# by pulling Docker images from ECR and running them on EC2 instances.
+#
+# Architecture:
+#   Bastion (Nginx Proxy) -> Frontend (Next.js) -> Backend (NestJS) -> RDS
+#
+# Usage:
+#   ansible-playbook playbooks/deploy.yml -i inventory/deploy.ini
+# =============================================================================
+
+- name: Deploy Application Stack
+  hosts: all
+  gather_facts: yes
+  vars:
+    docker_compose_version: "2.24.0"
+    
+  tasks:
+    - name: Display deployment info
+      debug:
+        msg: |
+          Deploying to {{ inventory_hostname }}
+          Role: {{ instance_role | default('unknown') }}
+          ECR Registry: {{ ecr_registry }}
+
+# =============================================================================
+# Install Docker on all hosts
+# =============================================================================
+- name: Install Docker on all hosts
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Install Docker dependencies
+      yum:
+        name:
+          - docker
+          - python3-pip
+        state: present
+
+    - name: Start and enable Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
+    - name: Install Docker SDK for Python
+      pip:
+        name: docker
+        state: present
+        executable: pip3
+
+    - name: Install AWS CLI v2
+      shell: |
+        if ! command -v aws &> /dev/null; then
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip"
+          unzip -q /tmp/awscliv2.zip -d /tmp
+          /tmp/aws/install
+          rm -rf /tmp/aws /tmp/awscliv2.zip
+        fi
+      args:
+        creates: /usr/local/bin/aws
+
+# =============================================================================
+# Deploy Backend Service
+# =============================================================================
+- name: Deploy Backend
+  hosts: backend
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Login to ECR
+      shell: |
+        aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_registry }}
+      register: ecr_login
+      changed_when: "'Login Succeeded' in ecr_login.stdout"
+
+    - name: Pull backend image
+      docker_image:
+        name: "{{ ecr_backend_image }}"
+        source: pull
+        force_source: yes
+
+    - name: Stop existing backend container
+      docker_container:
+        name: backend
+        state: absent
+      ignore_errors: yes
+
+    - name: Run backend container
+      docker_container:
+        name: backend
+        image: "{{ ecr_backend_image }}"
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "3001:3001"
+        env:
+          NODE_ENV: "production"
+          PORT: "3001"
+          DB_HOST: "{{ db_host }}"
+          DB_PORT: "{{ db_port }}"
+          DB_USERNAME: "{{ db_username }}"
+          DB_PASSWORD: "{{ db_password }}"
+          DB_NAME: "{{ db_name }}"
+          DB_SSL: "true"
+        healthcheck:
+          test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/health"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+          start_period: 30s
+
+    - name: Wait for backend to be healthy
+      uri:
+        url: "http://127.0.0.1:3001/health"
+        method: GET
+        status_code: 200
+      register: backend_health
+      retries: 10
+      delay: 5
+      until: backend_health.status == 200
+
+    - name: Display backend status
+      debug:
+        msg: "Backend deployed successfully on {{ inventory_hostname }}:3001"
+
+# =============================================================================
+# Deploy Frontend Service
+# =============================================================================
+- name: Deploy Frontend
+  hosts: frontend
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Login to ECR
+      shell: |
+        aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_registry }}
+      register: ecr_login
+      changed_when: "'Login Succeeded' in ecr_login.stdout"
+
+    - name: Pull frontend image
+      docker_image:
+        name: "{{ ecr_frontend_image }}"
+        source: pull
+        force_source: yes
+
+    - name: Stop existing frontend container
+      docker_container:
+        name: frontend
+        state: absent
+      ignore_errors: yes
+
+    - name: Run frontend container
+      docker_container:
+        name: frontend
+        image: "{{ ecr_frontend_image }}"
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "3000:3000"
+        env:
+          NODE_ENV: "production"
+          # Note: NEXT_PUBLIC_* are build-time vars. The frontend uses /api as default
+          # which nginx on bastion will route to the backend
+        healthcheck:
+          test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+          start_period: 30s
+
+    - name: Wait for frontend to be healthy
+      uri:
+        url: "http://127.0.0.1:3000"
+        method: GET
+        status_code: 200
+      register: frontend_health
+      retries: 10
+      delay: 5
+      until: frontend_health.status == 200
+
+    - name: Display frontend status
+      debug:
+        msg: "Frontend deployed successfully on {{ inventory_hostname }}:3000"
+
+# =============================================================================
+# Deploy Nginx Proxy on Bastion
+# =============================================================================
+- name: Deploy Nginx Proxy on Bastion
+  hosts: bastion
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Login to ECR
+      shell: |
+        aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_registry }}
+      register: ecr_login
+      changed_when: "'Login Succeeded' in ecr_login.stdout"
+
+    - name: Pull proxy image
+      docker_image:
+        name: "{{ ecr_proxy_image }}"
+        source: pull
+        force_source: yes
+
+    - name: Create nginx config directory
+      file:
+        path: /etc/nginx/conf.d
+        state: directory
+        mode: '0755'
+
+    - name: Create custom nginx config for AWS deployment
+      copy:
+        dest: /etc/nginx/nginx-aws.conf
+        content: |
+          worker_processes auto;
+          error_log /var/log/nginx/error.log warn;
+          pid /var/run/nginx.pid;
+          
+          events {
+              worker_connections 1024;
+          }
+          
+          http {
+              include /etc/nginx/mime.types;
+              default_type application/octet-stream;
+              
+              log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                              '$status $body_bytes_sent "$http_referer" '
+                              '"$http_user_agent" "$http_x_forwarded_for"';
+              
+              access_log /var/log/nginx/access.log main;
+              sendfile on;
+              keepalive_timeout 65;
+              
+              # Upstream for backend (private IP)
+              upstream backend_api {
+                  server {{ backend_private_ip }}:3001;
+              }
+              
+              # Upstream for frontend (private IP)
+              upstream frontend_app {
+                  server {{ frontend_private_ip }}:3000;
+              }
+              
+              server {
+                  listen 80;
+                  server_name _;
+                  
+                  # Health check endpoint for nginx itself
+                  location /nginx-health {
+                      access_log off;
+                      return 200 "healthy\n";
+                      add_header Content-Type text/plain;
+                  }
+                  
+                  # Backend API proxy - pass /api/* as-is to backend
+                  # Backend expects routes like /api/notes, /api/notes/:id
+                  location /api/ {
+                      proxy_pass http://backend_api/api/;
+                      proxy_http_version 1.1;
+                      proxy_set_header Host $host;
+                      proxy_set_header X-Real-IP $remote_addr;
+                      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                      proxy_set_header X-Forwarded-Proto $scheme;
+                      proxy_connect_timeout 30s;
+                      proxy_send_timeout 30s;
+                      proxy_read_timeout 30s;
+                  }
+                  
+                  # Health endpoint (backend) - direct access
+                  location = /health {
+                      proxy_pass http://backend_api/health;
+                      proxy_http_version 1.1;
+                      proxy_set_header Host $host;
+                  }
+                  
+                  # Frontend app (default) - all other requests
+                  location / {
+                      proxy_pass http://frontend_app;
+                      proxy_http_version 1.1;
+                      proxy_set_header Host $host;
+                      proxy_set_header X-Real-IP $remote_addr;
+                      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                      proxy_set_header X-Forwarded-Proto $scheme;
+                      proxy_set_header Upgrade $http_upgrade;
+                      proxy_set_header Connection "upgrade";
+                  }
+              }
+          }
+        mode: '0644'
+
+    - name: Stop existing proxy container
+      docker_container:
+        name: proxy
+        state: absent
+      ignore_errors: yes
+
+    - name: Run nginx proxy container
+      docker_container:
+        name: proxy
+        image: nginx:alpine
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "80:80"
+        volumes:
+          - /etc/nginx/nginx-aws.conf:/etc/nginx/nginx.conf:ro
+        healthcheck:
+          test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/nginx-health"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+          start_period: 10s
+
+    - name: Wait for proxy to be healthy
+      uri:
+        url: "http://127.0.0.1/nginx-health"
+        method: GET
+        status_code: 200
+      register: proxy_health
+      retries: 10
+      delay: 5
+      until: proxy_health.status == 200
+
+    - name: Display proxy status
+      debug:
+        msg: "Nginx proxy deployed successfully on {{ inventory_hostname }}:80"
+
+# =============================================================================
+# Verify Full Stack Deployment
+# =============================================================================
+- name: Verify Deployment
+  hosts: bastion
+  gather_facts: no
+  
+  tasks:
+    - name: Test backend health through proxy
+      uri:
+        url: "http://127.0.0.1/health"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 5
+      delay: 3
+      until: health_check.status == 200
+
+    - name: Test frontend through proxy
+      uri:
+        url: "http://127.0.0.1/"
+        method: GET
+        status_code: 200
+      register: frontend_check
+      retries: 5
+      delay: 3
+      until: frontend_check.status == 200
+
+    - name: Deployment complete
+      debug:
+        msg: |
+          ============================================
+          DEPLOYMENT COMPLETE
+          ============================================
+          Application URL: http://{{ bastion_public_ip }}
+          Backend Health: http://{{ bastion_public_ip }}/health
+          API Endpoint: http://{{ bastion_public_ip }}/api/notes
+          ============================================

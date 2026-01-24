@@ -59,7 +59,7 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -86,6 +86,7 @@ services:
       - DB_USERNAME=${DB_USERNAME:-dbadmin}
       - DB_PASSWORD=${DB_PASSWORD:-changeme}
       - DB_NAME=${DB_NAME:-notesdb}
+      - DB_SSL=${DB_SSL:-false}
     networks:
       - frontend
       - backend
@@ -93,7 +94,7 @@ services:
       database:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -117,7 +118,9 @@ services:
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # NOTE: init.sql mount commented out due to Docker Desktop path issue with spaces
+      # TypeORM synchronize:true will auto-create tables
+      # - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - backend
     healthcheck:
