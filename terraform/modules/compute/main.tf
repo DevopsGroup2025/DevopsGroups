@@ -37,25 +37,27 @@ resource "aws_instance" "bastion" {
 }
 
 resource "aws_instance" "frontend" {
+  count                  = var.frontend_instance_count
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
   key_name               = aws_key_pair.main.key_name
   vpc_security_group_ids = [var.frontend_security_group_id]
-  subnet_id              = var.private_subnet_ids[0]
+  subnet_id              = var.private_subnet_ids[count.index % length(var.private_subnet_ids)]
   iam_instance_profile   = var.iam_instance_profile_name
   
-  tags = { Name = "frontend" }
+  tags = { Name = "frontend-${count.index + 1}" }
 }
 
 resource "aws_instance" "backend" {
+  count                  = var.backend_instance_count
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
   key_name               = aws_key_pair.main.key_name
   vpc_security_group_ids = [var.backend_security_group_id]
-  subnet_id              = var.private_subnet_ids[1]
+  subnet_id              = var.private_subnet_ids[count.index % length(var.private_subnet_ids)]
   iam_instance_profile   = var.iam_instance_profile_name
   
-  tags = { Name = "backend" }
+  tags = { Name = "backend-${count.index + 1}" }
 }
 
 resource "aws_eip" "bastion" {

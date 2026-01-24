@@ -29,3 +29,15 @@ variable "iam_instance_profile_name" {
 variable "instance_type" {
   type = string
 }
+
+variable "frontend_instance_count" {
+  description = "Number of frontend instances"
+  type        = number
+  default     = 2
+}
+
+variable "backend_instance_count" {
+  description = "Number of backend instances"
+  type        = number
+  default     = 2
+}
