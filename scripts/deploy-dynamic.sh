@@ -338,8 +338,8 @@ run_deployment() {
 
 get_loadbalancer_ip() {
     local lb_ip
-    lb_ip=$(ansible-inventory -i aws_ec2.yml --list 2>/dev/null | \
-        jq -r '._meta.hostvars | to_entries[] | select(.value.instance_role == "load_balancer") | (.value.public_ip_address // .value.public_ip // "")' 2>/dev/null | head -n1)
+    lb_ip=$(ansible-inventory -i "$INVENTORY_FILE" --list 2>/dev/null | \
+        jq -r '._meta.hostvars | to_entries[] | select((.value.instance_role == "load_balancer") or (.value.tags.Role == "load_balancer")) | (.value.public_ip_address // .value.public_ip // .value.public_dns_name // "")' 2>/dev/null | head -n1)
     echo "[DEBUG] Raw load balancer IP: $lb_ip" >&2
     echo "$lb_ip"
 }
