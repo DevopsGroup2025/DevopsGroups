@@ -17,6 +17,6 @@ database_password: password
 database_name: notesdb
 
 # ECR Docker settings
-ecr_repository: "backend"
+ecr_repository: "backend-app-repo"
 ecr_region: "eu-west-1"
 docker_image_tag: "latest"
