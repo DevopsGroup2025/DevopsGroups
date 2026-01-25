@@ -30,8 +30,6 @@ resource "aws_cloudwatch_log_group" "docker_logs" {
   retention_in_days = var.cloudwatch_log_retention_days
 }
 
-
-
 resource "aws_instance" "load_balancer" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type

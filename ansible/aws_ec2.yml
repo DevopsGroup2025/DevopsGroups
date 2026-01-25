@@ -8,7 +8,7 @@ regions:
 # Filter running instances by tags
 filters:
   instance-state-name: running
-  "tag:Project": terraform-ansible-webapp
+  "tag:Project": devops-notes-app
   "tag:Environment": ["dev"]
 
 # Grouping hosts dynamically
@@ -37,12 +37,15 @@ compose:
   managed_by: tags.ManagedBy
   private_ip: private_ip_address
   public_ip: public_ip_address
+  ansible_host: public_ip_address
 
 # How hosts are identified
 hostnames:
-- tag:Name
-- private-ip-address
-- public-ip-address
+- instance_id
+# - public-dns-name
+# - public-ip-address
+# - private-ip-address
+# - tag:Name
 
 # Optional: strict mode ensures missing vars/errors are caught early
 strict: False

@@ -5,7 +5,7 @@
   gather_facts: yes
   become: yes
   roles:
-    - role: load_balancer
+    - role: webserver
 
 - name: Deploy Backend Services
   hosts: role_backend

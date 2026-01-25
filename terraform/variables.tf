@@ -21,11 +21,13 @@ variable "vpc_azs_count" {
   type        = number
   default     = 2
 }
+
 variable "key_pair_name" {
   description = "Name for the EC2 key pair"
   type        = string
   default     = "devops-team-key-pair"
 }
+
 variable "aws_region" {
   description = "AWS region to deploy resources into"
   type        = string

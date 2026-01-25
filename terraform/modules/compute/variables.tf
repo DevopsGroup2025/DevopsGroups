@@ -45,7 +45,7 @@ variable "backend_instance_count" {
 variable "key_pair_name" {
   description = "Name for the EC2 key pair"
   type        = string
-  default = "devops-team-key"
+  default     = "devops-team-key"
 }
 
 variable "cloudwatch_log_retention_days" {

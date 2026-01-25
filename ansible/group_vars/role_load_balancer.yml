@@ -1,0 +1,7 @@
+# Variables for the load balancer servers
+ansible_user: ubuntu
+ansible_ssh_private_key_file: terraform/bastion-key-devops-notes-app.pem
+
+# Load balancer connects directly via public IP
+# No jump host required
+ansible_ssh_common_args: ""

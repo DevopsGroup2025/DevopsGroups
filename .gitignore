@@ -82,3 +82,4 @@ secrets/
 credentials/
 # Allow terraform/modules/secrets to be tracked
 !terraform/modules/secrets/
+venv/*

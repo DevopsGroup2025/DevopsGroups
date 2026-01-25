@@ -1,0 +1,17 @@
+# Variables for frontend servers (private subnet)
+ansible_user: ubuntu
+ansible_ssh_private_key_file: terraform/bastion-key-devops-notes-app.pem
+
+# Use load balancer as jump host
+ansible_ssh_common_args: >-
+  -o ProxyJump=ec2-user@{{ hostvars[groups['role_load_balancer'][0]].ansible_host }} #magic___^_^___line
+# Frontend application variables
+app_dir: "/home/{{ ansible_user }}/frontend"
+frontend_port: 3000
+
+# Backend host(s) for API calls
+backend_hosts: "{{ groups['role_backend'] | map('extract', hostvars, 'private_ip') | list }}"
+
+ecr_repository: "frontend-app-repo"
+ecr_region: "eu-west-1"
+docker_image_tag: "latest"
