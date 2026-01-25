@@ -14,4 +14,5 @@ backend_hosts: "{{ groups['role_backend'] | map('extract', hostvars, 'private_ip
 
 ecr_repository: "frontend-app-repo"
 ecr_region: "eu-west-1"
+ecr_account_id: "414392949441"
 docker_image_tag: "latest"
