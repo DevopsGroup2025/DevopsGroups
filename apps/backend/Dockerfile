@@ -1,82 +1,41 @@
-# =============================================================================
-# Multi-stage Dockerfile for NestJS Backend API
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# Stage 1: Dependencies
-# -----------------------------------------------------------------------------
-FROM node:20-alpine AS deps
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install production dependencies only
-RUN npm install --omit=dev && npm cache clean --force
-
-# -----------------------------------------------------------------------------
-# Stage 2: Builder
-# -----------------------------------------------------------------------------
+# Use official Node.js LTS image
 FROM node:20-alpine AS builder
 
-WORKDIR /app
+# Set working directory
+WORKDIR /usr/src/app
 
-# Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
-
-# Install all dependencies (including devDependencies for build)
-RUN npm install
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci --silent
 
 # Copy source code
-COPY src/ ./src/
+COPY tsconfig.json ./
+COPY src ./src
 
-# Build the application
+# Build Nest.js app
 RUN npm run build
 
-# -----------------------------------------------------------------------------
-# Stage 3: Production
-# -----------------------------------------------------------------------------
-FROM node:20-alpine AS production
+# Use a smaller image for runtime
+FROM node:20-alpine AS runner
+WORKDIR /usr/src/app
 
-# Add labels for metadata
-LABEL maintainer="DevOps Team"
-LABEL description="NestJS Backend API for Notes Application"
-LABEL version="1.0.0"
+# Copy only the built app and package files
+COPY package.json package-lock.json ./
+COPY --from=builder /usr/src/app/dist ./dist
 
-# Install wget for health checks (ensure it's available)
-RUN apk add --no-cache wget
+# Install production dependencies only
+RUN npm ci --omit=dev --silent
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nestjs -u 1001 -G nodejs
-
-WORKDIR /app
-
-# Copy production dependencies from deps stage
-COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
-
-# Copy built application from builder stage
-COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nestjs:nodejs /app/package*.json ./
-
-# Verify the build - this will fail the build if files are missing
-RUN ls -la /app/dist/ && test -f /app/dist/main.js
-
-# Set environment variables
-ENV NODE_ENV=production
-ENV PORT=3001
-
-# Expose the application port
+# Expose port
 EXPOSE 3001
 
-# Switch to non-root user
-USER nestjs
+# Set environment variables defaults (can be overridden)
+ENV PORT=3001
+ENV DATABASE_HOST=localhost
+ENV DATABASE_PORT=5432
+ENV DATABASE_USER=dbadmin
+ENV DATABASE_PASSWORD=password
+ENV DATABASE_NAME=notesdb
 
-# Health check with longer start period to allow for DB connection
-HEALTHCHECK --interval=10s --timeout=10s --start-period=60s --retries=6 \
-    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3001/health || exit 1
-
-# Start the application
+# Start the app
 CMD ["node", "dist/main.js"]
