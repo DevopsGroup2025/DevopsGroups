@@ -51,3 +51,9 @@ module "database" {
   db_username          = module.secrets.db_username
   db_password          = module.secrets.db_password
 }
+
+resource "aws_ecr_repository" "main" {
+  name                 = "main-app-repo"
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true
+}
