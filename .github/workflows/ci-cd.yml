@@ -34,20 +34,20 @@ on:
   push:
     branches:
       - main
-      - 'develop/**'
+      - "develop/**"
   pull_request:
     branches:
       - main
-      - 'develop/**'
+      - "develop/**"
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
+      - "**.md"
+      - "docs/**"
   workflow_dispatch:
     inputs:
       deploy_environment:
-        description: 'Environment to deploy to'
+        description: "Environment to deploy to"
         required: false
-        default: 'prod'
+        default: "prod"
         type: choice
         options:
           - prod
@@ -68,7 +68,7 @@ jobs:
     strategy:
       matrix:
         service: [backend, frontend]
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -76,7 +76,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install dependencies
         working-directory: apps/${{ matrix.service }}
@@ -110,10 +110,10 @@ jobs:
       frontend-image: ${{ steps.meta-frontend.outputs.tags }}
       proxy-image: ${{ steps.meta-proxy.outputs.tags }}
       image-tag: ${{ steps.meta-backend.outputs.version }}
-    
+
     env:
       ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -204,16 +204,16 @@ jobs:
       - name: Save Docker images
         run: |
           mkdir -p /tmp/images
-          
+
           # Debug: Show available images
           echo "Available Docker images:"
           docker images | grep "${{ env.IMAGE_PREFIX }}" || echo "No matching images found"
-          
+
           # Save using the version from metadata (which matches the actual tags created)
           docker save "${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.meta-backend.outputs.version }}" -o /tmp/images/backend.tar
           docker save "${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.meta-frontend.outputs.version }}" -o /tmp/images/frontend.tar
           docker save "${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ steps.meta-proxy.outputs.version }}" -o /tmp/images/proxy.tar
-          
+
           echo "Saved images successfully"
 
       - name: Upload images artifact
@@ -233,7 +233,7 @@ jobs:
     environment: prod
     env:
       ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -253,32 +253,32 @@ jobs:
       - name: Run Trivy vulnerability scanner on Backend
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ needs.build.outputs.image-tag }}'
-          format: 'table'
-          exit-code: '0'
+          image-ref: "${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ needs.build.outputs.image-tag }}"
+          format: "table"
+          exit-code: "0"
           ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
 
       - name: Run Trivy vulnerability scanner on Frontend
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ needs.build.outputs.image-tag }}'
-          format: 'table'
-          exit-code: '0'
+          image-ref: "${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ needs.build.outputs.image-tag }}"
+          format: "table"
+          exit-code: "0"
           ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
 
       - name: Run Trivy vulnerability scanner on Proxy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ needs.build.outputs.image-tag }}'
-          format: 'table'
-          exit-code: '0'
+          image-ref: "${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ needs.build.outputs.image-tag }}"
+          format: "table"
+          exit-code: "0"
           ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
 
   # ===========================================================================
   # Stage 4: Integration Test
@@ -290,7 +290,7 @@ jobs:
     environment: prod
     env:
       ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -306,22 +306,22 @@ jobs:
           echo "=========================================="
           echo "Loading Docker images from artifacts"
           echo "=========================================="
-          
+
           echo "--- Loading backend image ---"
           docker load -i /tmp/images/backend.tar
-          
+
           echo "--- Loading frontend image ---"
           docker load -i /tmp/images/frontend.tar
-          
+
           echo "--- Loading proxy image ---"
           docker load -i /tmp/images/proxy.tar
-          
+
           echo ""
           echo "=========================================="
           echo "All Docker images after loading"
           echo "=========================================="
           docker images
-          
+
           echo ""
           echo "--- Images matching our prefix ---"
           docker images | grep -E "(REPOSITORY|${{ env.IMAGE_PREFIX }})" || echo "No matching images found"
@@ -331,35 +331,35 @@ jobs:
           echo "=========================================="
           echo "Inspecting backend image"
           echo "=========================================="
-          
+
           # Get the image name
           BACKEND_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ needs.build.outputs.image-tag }}"
           echo "Backend image: $BACKEND_IMAGE"
-          
+
           echo ""
           echo "--- Image history ---"
           docker history "$BACKEND_IMAGE" --no-trunc 2>/dev/null | head -20 || echo "Could not get history"
-          
+
           echo ""
           echo "--- Image labels ---"
           docker inspect "$BACKEND_IMAGE" --format='{{json .Config.Labels}}' 2>/dev/null | jq . 2>/dev/null || echo "Could not get labels"
-          
+
           echo ""
           echo "--- Image CMD/Entrypoint ---"
           docker inspect "$BACKEND_IMAGE" --format='CMD: {{json .Config.Cmd}} | Entrypoint: {{json .Config.Entrypoint}}' 2>/dev/null || echo "Could not get cmd"
-          
+
           echo ""
           echo "--- Image environment variables ---"
           docker inspect "$BACKEND_IMAGE" --format='{{json .Config.Env}}' 2>/dev/null | jq . 2>/dev/null || echo "Could not get env"
-          
+
           echo ""
           echo "--- Image exposed ports ---"
           docker inspect "$BACKEND_IMAGE" --format='{{json .Config.ExposedPorts}}' 2>/dev/null || echo "Could not get ports"
-          
+
           echo ""
           echo "--- Checking if /app/dist/main.js exists in image ---"
           docker run --rm "$BACKEND_IMAGE" sh -c "ls -la /app/dist/ 2>/dev/null | head -20 || echo 'dist directory not found'" || echo "Could not run container"
-          
+
           echo ""
           echo "--- Checking node_modules ---"
           docker run --rm "$BACKEND_IMAGE" sh -c "ls /app/node_modules 2>/dev/null | wc -l" || echo "Could not check node_modules"
@@ -369,22 +369,22 @@ jobs:
           echo "=========================================="
           echo "Inspecting frontend image"
           echo "=========================================="
-          
+
           FRONTEND_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ needs.build.outputs.image-tag }}"
           echo "Frontend image: $FRONTEND_IMAGE"
-          
+
           echo ""
           echo "--- Checking /app contents ---"
           docker run --rm --entrypoint sh notes-frontend:latest -c "ls -la /app/" || echo "Could not list /app"
-          
+
           echo ""
           echo "--- Checking if server.js exists ---"
           docker run --rm --entrypoint sh notes-frontend:latest -c "test -f /app/server.js && echo 'server.js EXISTS' || echo 'server.js MISSING!'" || echo "Could not check"
-          
+
           echo ""
           echo "--- Checking .next directory ---"
           docker run --rm --entrypoint sh notes-frontend:latest -c "ls -la /app/.next/ 2>/dev/null || echo '.next directory not found'" || echo "Could not check .next"
-          
+
           echo ""
           echo "--- Quick frontend startup test ---"
           timeout 20 docker run --rm \
@@ -410,16 +410,16 @@ jobs:
           echo "=========================================="
           echo "Image tag from build job: ${{ needs.build.outputs.image-tag }}"
           echo ""
-          
+
           echo "--- Tagging backend ---"
           docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ needs.build.outputs.image-tag }} notes-backend:latest
-          
+
           echo "--- Tagging frontend ---"
           docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ needs.build.outputs.image-tag }} notes-frontend:latest
-          
+
           echo "--- Tagging proxy ---"
           docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ needs.build.outputs.image-tag }} notes-proxy:latest
-          
+
           echo ""
           echo "=========================================="
           echo "Images after tagging"
@@ -433,14 +433,14 @@ jobs:
           echo "=========================================="
           echo "This tests if the backend can start at all (will fail DB connection but should show app logs)"
           echo ""
-          
+
           echo "--- Step 1: Check what's inside the container ---"
           docker run --rm --entrypoint sh notes-backend:latest -c "echo '=== /app contents ===' && ls -la /app/ && echo '' && echo '=== /app/dist contents ===' && ls -la /app/dist/ && echo '' && echo '=== Node version ===' && node --version && echo '' && echo '=== Check main.js exists ===' && head -20 /app/dist/main.js"
-          
+
           echo ""
           echo "--- Step 2: Check node_modules ---"
           docker run --rm --entrypoint sh notes-backend:latest -c "echo 'Total packages:' && ls /app/node_modules | wc -l && echo '' && echo 'Key packages:' && ls /app/node_modules | grep -E '(@nestjs|typeorm|pg|reflect-metadata)' || echo 'Some packages missing!'"
-          
+
           echo ""
           echo "--- Step 3: Try to run the app (will fail on DB but should show startup) ---"
           # Use timeout but capture output
@@ -456,7 +456,7 @@ jobs:
             notes-backend:latest 2>&1
           EXIT_CODE=$?
           set -e
-          
+
           echo ""
           echo "--- Container exit code: $EXIT_CODE ---"
           echo "(Exit code 124 = timeout, which is expected if app hangs waiting for DB)"
@@ -557,13 +557,13 @@ jobs:
               driver: bridge
               internal: true
           EOF
-          
+
           echo ""
           echo "=========================================="
           echo "Docker Compose Configuration"
           echo "=========================================="
           cat docker-compose.test.yml
-          
+
           echo ""
           echo "=========================================="
           echo "Checking init.sql file"
@@ -575,13 +575,13 @@ jobs:
             echo "WARNING: init.sql not found!"
             ls -la ./database/ || echo "database directory not found"
           fi
-          
+
           echo ""
           echo "=========================================="
           echo "Step 1: Starting database container"
           echo "=========================================="
           docker compose -f docker-compose.test.yml up -d database
-          
+
           echo "Waiting for database to initialize..."
           for i in {1..12}; do
             echo "--- Database check $i/12 ---"
@@ -596,13 +596,13 @@ jobs:
             docker compose -f docker-compose.test.yml logs --tail=20 database
             sleep 5
           done
-          
+
           echo ""
           echo "=========================================="
           echo "Step 2: Starting backend container"
           echo "=========================================="
           docker compose -f docker-compose.test.yml up -d backend
-          
+
           echo "Waiting for backend to initialize..."
           for i in {1..15}; do
             echo ""
@@ -679,7 +679,7 @@ jobs:
             
             sleep 10
           done
-          
+
           echo ""
           echo "=========================================="
           echo "Backend startup complete - Final Status"
@@ -688,13 +688,13 @@ jobs:
           echo ""
           echo "--- Final backend logs ---"
           docker compose -f docker-compose.test.yml logs --tail=50 backend
-          
+
           echo ""
           echo "=========================================="
           echo "Step 3: Starting frontend"
           echo "=========================================="
           docker compose -f docker-compose.test.yml up -d frontend
-          
+
           echo "Waiting for frontend to initialize..."
           for i in {1..12}; do
             echo ""
@@ -727,13 +727,13 @@ jobs:
             
             sleep 10
           done
-          
+
           echo ""
           echo "=========================================="
           echo "Step 4: Starting proxy"
           echo "=========================================="
           docker compose -f docker-compose.test.yml up -d
-          
+
           echo ""
           echo "=========================================="
           echo "All containers status after startup"
@@ -746,7 +746,7 @@ jobs:
           echo "=========================================="
           echo "Waiting for all services to be healthy"
           echo "=========================================="
-          
+
           # Wait with timeout, show status periodically
           for i in {1..30}; do
             echo ""
@@ -795,7 +795,7 @@ jobs:
             
             sleep 10
           done
-          
+
           echo ""
           echo "=========================================="
           echo "Final Status Check"
@@ -811,17 +811,17 @@ jobs:
       - name: Test API endpoints
         run: |
           echo "Testing notes API..."
-          
+
           # Test GET /notes
           echo "GET /notes:"
           curl -f http://localhost/notes || true
-          
+
           # Test POST /notes
           echo -e "\nPOST /notes:"
           curl -f -X POST http://localhost/notes \
             -H "Content-Type: application/json" \
             -d '{"title":"Test Note","content":"This is a test note from CI","category":"Work"}' || true
-          
+
           # Test GET /notes again
           echo -e "\nGET /notes (after POST):"
           curl -f http://localhost/notes || true
@@ -834,34 +834,34 @@ jobs:
       - name: Test proxy routing
         run: |
           echo "Testing proxy routing..."
-          
+
           # Test nginx health
           curl -f http://localhost/nginx-health
-          
+
           # Verify X-Forwarded-For header is being set (check nginx logs)
           docker compose -f docker-compose.test.yml logs proxy | head -50
 
       - name: Test database persistence
         run: |
           echo "Testing database persistence..."
-          
+
           # Create a note
           curl -X POST http://localhost/notes \
             -H "Content-Type: application/json" \
             -d '{"title":"Persistence Test","content":"Testing data persistence","category":"Ideas"}'
-          
+
           # Get notes count
           NOTES_BEFORE=$(curl -s http://localhost/notes | grep -o '"id"' | wc -l)
           echo "Notes before restart: $NOTES_BEFORE"
-          
+
           # Restart backend (not database)
           docker compose -f docker-compose.test.yml restart backend
           sleep 20
-          
+
           # Get notes count after restart
           NOTES_AFTER=$(curl -s http://localhost/notes | grep -o '"id"' | wc -l)
           echo "Notes after restart: $NOTES_AFTER"
-          
+
           # Verify persistence
           if [ "$NOTES_AFTER" -ge "$NOTES_BEFORE" ]; then
             echo "✅ Data persistence verified!"
@@ -876,31 +876,31 @@ jobs:
           echo "=========================================="
           echo "FAILURE DIAGNOSTICS"
           echo "=========================================="
-          
+
           echo ""
           echo "=========================================="
           echo "1. Container Status Overview"
           echo "=========================================="
           docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
-          
+
           echo ""
           echo "=========================================="
           echo "2. Docker Compose Status"
           echo "=========================================="
           docker compose -f docker-compose.test.yml ps 2>/dev/null || echo "Compose file not available"
-          
+
           echo ""
           echo "=========================================="
           echo "3. Database Container Logs"
           echo "=========================================="
           docker logs notes-database 2>&1 || echo "No database container logs"
-          
+
           echo ""
           echo "=========================================="
           echo "4. Backend Container Logs (FULL)"
           echo "=========================================="
           docker logs notes-backend 2>&1 || echo "No backend container logs"
-          
+
           echo ""
           echo "=========================================="
           echo "5. Backend Container Health Details"
@@ -908,13 +908,13 @@ jobs:
           docker inspect notes-backend --format='{{json .State}}' 2>/dev/null | jq . || \
             docker inspect notes-backend --format='{{json .State}}' 2>/dev/null || \
             echo "Could not inspect backend container"
-          
+
           echo ""
           echo "=========================================="
           echo "6. Frontend Container Logs (FULL)"
           echo "=========================================="
           docker logs notes-frontend 2>&1 || echo "No frontend container logs"
-          
+
           echo ""
           echo "=========================================="
           echo "6b. Frontend Container Health Details"
@@ -922,13 +922,13 @@ jobs:
           docker inspect notes-frontend --format='{{json .State}}' 2>/dev/null | jq . || \
             docker inspect notes-frontend --format='{{json .State}}' 2>/dev/null || \
             echo "Could not inspect frontend container"
-          
+
           echo ""
           echo "=========================================="
           echo "7. Proxy Container Logs"
           echo "=========================================="
           docker logs notes-proxy 2>&1 || echo "No proxy container logs"
-          
+
           echo ""
           echo "=========================================="
           echo "8. Network Configuration"
@@ -940,13 +940,13 @@ jobs:
           echo ""
           echo "--- Backend network ---"
           docker network inspect docker-compose-test_backend 2>/dev/null || docker network inspect integration-test_backend 2>/dev/null || echo "Backend network not found"
-          
+
           echo ""
           echo "=========================================="
           echo "9. Container Resource Usage"
           echo "=========================================="
           docker stats --no-stream 2>/dev/null || echo "Could not get stats"
-          
+
           echo ""
           echo "=========================================="
           echo "10. System Resources"
@@ -960,15 +960,15 @@ jobs:
           echo "=========================================="
           echo "FINAL STATE - All Container Logs"
           echo "=========================================="
-          
+
           echo ""
           echo "--- Final container status ---"
           docker ps -a --format "table {{.Names}}\t{{.Status}}" 2>/dev/null || true
-          
+
           echo ""
           echo "--- Backend logs (last 100 lines) ---"
           docker logs notes-backend --tail=100 2>&1 || echo "No backend logs"
-          
+
           echo ""
           echo "--- Database logs (last 50 lines) ---"
           docker logs notes-database --tail=50 2>&1 || echo "No database logs"
@@ -991,7 +991,7 @@ jobs:
     env:
       ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
       IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1049,7 +1049,7 @@ jobs:
   # ===========================================================================
   # This stage deploys to pre-existing infrastructure using Ansible.
   # The infrastructure is created by Terraform separately (not in CI/CD).
-  # 
+  #
   # Architecture:
   #   GitHub Actions -> Bastion (public) -> Frontend/Backend (private)
   # ===========================================================================
@@ -1064,7 +1064,7 @@ jobs:
     env:
       ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
       IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1080,13 +1080,13 @@ jobs:
       - name: Setup Python for Ansible
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install Ansible
         run: |
           # Use ansible 2.15+ which is compatible with current collections
           pip install 'ansible>=8.0,<9.0' boto3 botocore
-          
+
           # Show ansible version for debugging
           ansible --version
 
@@ -1095,28 +1095,28 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          
+
           # Add bastion to known hosts
           ssh-keyscan -H ${{ vars.BASTION_IP }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Create Ansible inventory
         run: |
           mkdir -p ansible/inventory
-          
+
           # Parse comma-separated IPs (support both single IP and multiple IPs)
           FRONTEND_IPS="${{ vars.FRONTEND_IP }}"
           BACKEND_IPS="${{ vars.BACKEND_IP }}"
-          
+
           echo "=========================================="
           echo "Parsing IPs from GitHub Variables"
           echo "=========================================="
           echo "FRONTEND_IP variable: '$FRONTEND_IPS'"
           echo "BACKEND_IP variable: '$BACKEND_IPS'"
-          
+
           # Convert comma-separated to newline-separated for inventory
           FRONTEND_HOSTS=$(echo "$FRONTEND_IPS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')
           BACKEND_HOSTS=$(echo "$BACKEND_IPS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')
-          
+
           echo ""
           echo "Parsed Frontend Hosts:"
           echo "$FRONTEND_HOSTS" | while read ip; do echo "  - $ip"; done
@@ -1124,66 +1124,66 @@ jobs:
           echo "Parsed Backend Hosts:"
           echo "$BACKEND_HOSTS" | while read ip; do echo "  - $ip"; done
           echo "=========================================="
-          
+
           cat > ansible/inventory/deploy.ini << EOF
           # =============================================================================
           # Ansible Inventory - Generated by CI/CD (Multi-AZ Support)
           # =============================================================================
-          
+
           [bastion]
           ${{ vars.BASTION_IP }} ansible_user=ec2-user
-          
+
           [bastion:vars]
           ansible_ssh_private_key_file=~/.ssh/deploy_key
           ansible_ssh_common_args=-o StrictHostKeyChecking=no
-          
+
           [frontend]
           $(echo "$FRONTEND_HOSTS" | sed 's/^/          /' | sed 's/$/ ansible_user=ec2-user/')
-          
+
           [frontend:vars]
           ansible_ssh_private_key_file=~/.ssh/deploy_key
           ansible_ssh_common_args=-o StrictHostKeyChecking=no -o ProxyCommand="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -W %h:%p ec2-user@${{ vars.BASTION_IP }}"
-          
+
           [backend]
           $(echo "$BACKEND_HOSTS" | sed 's/^/          /' | sed 's/$/ ansible_user=ec2-user/')
-          
+
           [backend:vars]
           ansible_ssh_private_key_file=~/.ssh/deploy_key
           ansible_ssh_common_args=-o StrictHostKeyChecking=no -o ProxyCommand="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -W %h:%p ec2-user@${{ vars.BASTION_IP }}"
-          
+
           [app:children]
           frontend
           backend
-          
+
           [all:vars]
           # Auto-discover Python interpreter on remote hosts
           ansible_python_interpreter=auto_silent
-          
+
           # Database Configuration
           db_host=${{ vars.DB_HOST }}
           db_port=5432
           db_name=notesdb
           db_username=dbadmin
           db_password=${{ secrets.DB_PASSWORD }}
-          
+
           # ECR Configuration
           ecr_registry=${{ env.ECR_REGISTRY }}
           ecr_backend_image=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ env.IMAGE_TAG }}
           ecr_frontend_image=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ env.IMAGE_TAG }}
           ecr_proxy_image=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-proxy:${{ env.IMAGE_TAG }}
           aws_region=${{ env.AWS_REGION }}
-          
+
           # Instance IPs (comma-separated for backward compatibility)
           bastion_public_ip=${{ vars.BASTION_IP }}
           frontend_private_ips=${{ vars.FRONTEND_IP }}
           backend_private_ips=${{ vars.BACKEND_IP }}
           EOF
-          
+
           echo "Generated inventory with frontend hosts:"
           echo "$FRONTEND_HOSTS"
           echo "Generated inventory with backend hosts:"
           echo "$BACKEND_HOSTS"
-          
+
           echo ""
           echo "=========================================="
           echo "Generated Inventory File Preview:"
@@ -1207,18 +1207,18 @@ jobs:
           # Test connectivity to first backend instance (for validation)
           BACKEND_IPS="${{ vars.BACKEND_IP }}"
           echo "Raw BACKEND_IP variable: '$BACKEND_IPS'"
-          
+
           FIRST_BACKEND_IP=$(echo "$BACKEND_IPS" | cut -d',' -f1 | tr -d ' ')
           echo "Extracted first backend IP: '$FIRST_BACKEND_IP'"
           echo "Bastion IP: ${{ vars.BASTION_IP }}"
           echo ""
           echo "Attempting SSH connection via bastion..."
           echo "Command: ssh -i ~/.ssh/deploy_key -o ProxyCommand='ssh ... -W %h:%p ec2-user@${{ vars.BASTION_IP }}' ec2-user@$FIRST_BACKEND_IP"
-          
+
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             -o ProxyCommand="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -W %h:%p ec2-user@${{ vars.BASTION_IP }}" \
             ec2-user@$FIRST_BACKEND_IP "echo 'Backend SSH via Bastion OK' && hostname"
-          
+
           echo "✅ Successfully connected to backend at $FIRST_BACKEND_IP"
 
       - name: Run Ansible Deployment
@@ -1235,10 +1235,10 @@ jobs:
         run: |
           echo "Waiting for services to start..."
           sleep 30
-          
+
           # Test bastion/proxy health
           curl -f --connect-timeout 10 http://${{ vars.BASTION_IP }}/nginx-health || echo "Proxy health check pending..."
-          
+
           # Test application through bastion
           curl -f --connect-timeout 10 http://${{ vars.BASTION_IP }}/health || echo "App health check pending..."
 
@@ -1248,7 +1248,7 @@ jobs:
           BACKEND_IPS="${{ vars.BACKEND_IP }}"
           FRONTEND_COUNT=$(echo "$FRONTEND_IPS" | tr ',' '\n' | grep -v '^$' | wc -l)
           BACKEND_COUNT=$(echo "$BACKEND_IPS" | tr ',' '\n' | grep -v '^$' | wc -l)
-          
+
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Component | Status | Details |" >> $GITHUB_STEP_SUMMARY
@@ -1276,7 +1276,7 @@ jobs:
   #   runs-on: ubuntu-latest
   #   needs: [push]
   #   if: always()
-    
+
   #   steps:
   #     - name: Delete artifacts
   #       uses: geekyeggo/delete-artifact@v4
