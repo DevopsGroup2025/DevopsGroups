@@ -58,6 +58,12 @@ variable "untagged_image_expiry_days" {
   default     = 7
 }
 
+variable "force_delete" {
+  description = "If true, delete the repository even if it contains images (required for terraform destroy)"
+  type        = bool
+  default     = true
+}
+
 variable "enable_cross_account_access" {
   description = "Enable cross-account access to ECR repositories"
   type        = bool

@@ -93,6 +93,7 @@ module "ecr" {
   scan_on_push               = true
   max_image_count            = var.ecr_max_image_count
   untagged_image_expiry_days = 7
+  force_delete               = true
 
   common_tags = local.common_tags
 }
@@ -182,13 +183,22 @@ module "bastion" {
 }
 
 # =============================================================================
-# Module: Frontend Instance (Private Subnet - Next.js)
+# Module: Frontend Instances (Private Subnets - Next.js) - Multi-AZ
+# =============================================================================
+# Create frontend instances in each private subnet for high availability
 # =============================================================================
 module "frontend" {
   source = "./modules/compute"
 
-  subnet_id            = module.vpc.private_subnet_ids[0] # PRIVATE subnet
-  instance_name        = "${var.project_name}-frontend"
+  for_each = {
+    for idx, subnet_id in module.vpc.private_subnet_ids : idx => {
+      subnet_id = subnet_id
+      az_suffix = local.availability_zones[idx]
+    }
+  }
+
+  subnet_id            = each.value.subnet_id
+  instance_name        = "${var.project_name}-frontend-${each.value.az_suffix}"
   instance_type        = var.instance_type
   instance_role        = "frontend"
   environment          = var.environment
@@ -204,7 +214,7 @@ module "frontend" {
 
   ssh_user            = var.ssh_user
   private_key_path    = module.keys.private_key_path
-  inventory_file_path = "${path.module}/../ansible/inventory-frontend.ini"
+  inventory_file_path = "${path.module}/../ansible/inventory-frontend-${each.key}.ini"
 
   common_tags = local.common_tags
 
@@ -212,13 +222,22 @@ module "frontend" {
 }
 
 # =============================================================================
-# Module: Backend Instance (Private Subnet - NestJS)
+# Module: Backend Instances (Private Subnets - NestJS) - Multi-AZ
+# =============================================================================
+# Create backend instances in each private subnet for high availability
 # =============================================================================
 module "backend" {
   source = "./modules/compute"
 
-  subnet_id            = module.vpc.private_subnet_ids[1] # PRIVATE subnet
-  instance_name        = "${var.project_name}-backend"
+  for_each = {
+    for idx, subnet_id in module.vpc.private_subnet_ids : idx => {
+      subnet_id = subnet_id
+      az_suffix = local.availability_zones[idx]
+    }
+  }
+
+  subnet_id            = each.value.subnet_id
+  instance_name        = "${var.project_name}-backend-${each.value.az_suffix}"
   instance_type        = var.instance_type
   instance_role        = "backend"
   environment          = var.environment
@@ -234,7 +253,7 @@ module "backend" {
 
   ssh_user            = var.ssh_user
   private_key_path    = module.keys.private_key_path
-  inventory_file_path = "${path.module}/../ansible/inventory-backend.ini"
+  inventory_file_path = "${path.module}/../ansible/inventory-backend-${each.key}.ini"
 
   common_tags = local.common_tags
 
@@ -292,10 +311,12 @@ resource "local_file" "ansible_inventory_unified" {
     instance_role=bastion
 
     # -----------------------------------------------------------------------------
-    # Frontend Server (Private - Next.js)
+    # Frontend Servers (Private - Next.js) - Multi-AZ
     # -----------------------------------------------------------------------------
     [frontend]
-    ${module.frontend.instance_private_ip} ansible_user=${var.ssh_user}
+%{ for key, frontend in module.frontend ~}
+    ${frontend.instance_private_ip} ansible_user=${var.ssh_user}
+%{ endfor ~}
 
     [frontend:vars]
     ansible_ssh_private_key_file=${abspath(module.keys.private_key_path)}
@@ -304,10 +325,12 @@ resource "local_file" "ansible_inventory_unified" {
     instance_role=frontend
 
     # -----------------------------------------------------------------------------
-    # Backend Server (Private - NestJS)
+    # Backend Servers (Private - NestJS) - Multi-AZ
     # -----------------------------------------------------------------------------
     [backend]
-    ${module.backend.instance_private_ip} ansible_user=${var.ssh_user}
+%{ for key, backend in module.backend ~}
+    ${backend.instance_private_ip} ansible_user=${var.ssh_user}
+%{ endfor ~}
 
     [backend:vars]
     ansible_ssh_private_key_file=${abspath(module.keys.private_key_path)}
@@ -348,8 +371,10 @@ resource "local_file" "ansible_inventory_unified" {
 
     # Instance IPs (for internal communication)
     bastion_public_ip=${module.bastion.instance_public_ip}
-    frontend_private_ip=${module.frontend.instance_private_ip}
-    backend_private_ip=${module.backend.instance_private_ip}
+    # Frontend IPs (comma-separated for Nginx upstream)
+    frontend_private_ips=${join(",", [for f in module.frontend : f.instance_private_ip])}
+    # Backend IPs (comma-separated for Nginx upstream)
+    backend_private_ips=${join(",", [for b in module.backend : b.instance_private_ip])}
   EOT
 
   filename = "${path.module}/../ansible/inventory/hosts.ini"
