@@ -270,14 +270,18 @@
               sendfile on;
               keepalive_timeout 65;
               
-              # Upstream for backend (private IP)
+              # Upstream for backend (private IPs - all backend hosts)
               upstream backend_api {
-                  server {{ backend_private_ip }}:3001;
+          {% for host in groups['backend'] %}
+                  server {{ host }}:3001;
+          {% endfor %}
               }
               
-              # Upstream for frontend (private IP)
+              # Upstream for frontend (private IPs - all frontend hosts)
               upstream frontend_app {
-                  server {{ frontend_private_ip }}:3000;
+          {% for host in groups['frontend'] %}
+                  server {{ host }}:3000;
+          {% endfor %}
               }
               
               server {
