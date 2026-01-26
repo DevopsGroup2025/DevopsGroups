@@ -19,7 +19,7 @@ variable "environment" {
 variable "managed_by" {
   description = "Name of the person or team managing the infrastructure"
   type        = string
-  default     = "Abraham Ayamigah"
+  default     = "terraform-ansible-webapp"
 }
 
 # VPC Configuration

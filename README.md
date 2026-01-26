@@ -1,37 +1,123 @@
-# Containerized Multi-Service Web Application with Reverse Proxy and Persistent Database
+# Containerized Multi-Service Web Application with AWS Infrastructure
 
 ## Project Overview
 
-This project demonstrates the design and deployment of a **containerized multi-service web application** using **Docker** and **Docker Compose**. The system follows production-style infrastructure practices and focuses on **service orchestration, networking, security, and persistence**, rather than application feature complexity.
+This project demonstrates a **production-ready, containerized multi-service web application** deployed on **AWS** using **Infrastructure as Code (IaC)**. The system follows enterprise DevOps practices with automated CI/CD, security scanning, and infrastructure automation.
 
-The application stack consists of:
-- A backend API service (NestJS)
-- A frontend application (Next.js)
-- A relational database with persistent storage (PostgreSQL)
-- A reverse proxy for routing and traffic management (Nginx)
-- Isolated container networks and environment-based configuration
+### Technology Stack
+
+**Application Layer:**
+- **Backend**: NestJS (TypeScript) REST API
+- **Frontend**: Next.js (React) with Server-Side Rendering
+- **Database**: PostgreSQL (RDS)
+- **Reverse Proxy**: Nginx
+
+**Infrastructure & DevOps:**
+- **IaC**: Terraform (AWS infrastructure provisioning)
+- **Configuration Management**: Ansible (application deployment)
+- **CI/CD**: GitHub Actions (automated build, test, deploy)
+- **Container Registry**: AWS ECR (Elastic Container Registry)
+- **Cloud Platform**: AWS (VPC, EC2, RDS, ECR, IAM)
 
 ---
 
-## Architecture Diagram
-![alt text](Architecture_diagram.jpg)
+## Architecture
 
----
+### AWS Infrastructure Architecture
 
-## Service Communication
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        AWS Cloud (eu-west-1)                                  │
+│  ┌───────────────────────────────────────────────────────────────────────┐    │
+│  │                      VPC: 10.0.0.0/16                                │    │
+│  │                                                                       │    │
+│  │  ┌───────────────────────────────────────────────────────────────┐   │    │
+│  │  │              PUBLIC SUBNET (10.0.1.0/24)                       │   │    │
+│  │  │  ┌─────────────┐              ┌─────────────┐                 │   │    │
+│  │  │  │  Internet   │              │     NAT     │                 │   │    │
+│  │  │  │  Gateway     │              │   Gateway   │                 │   │    │
+│  │  │  └──────┬──────┘              └──────┬──────┘                 │   │    │
+│  │  │         │                            │                        │   │    │
+│  │  │         └──────────┐         ┌────────┘                        │   │    │
+│  │  │                    ▼         ▼                                 │   │    │
+│  │  │            ┌─────────────────────┐                             │   │    │
+│  │  │            │   Bastion Host      │                             │   │    │
+│  │  │            │   (Nginx Proxy)     │                             │   │    │
+│  │  │            │   Public IP         │                             │   │    │
+│  │  │            └──────────┬──────────┘                             │   │    │
+│  │  └───────────────────────┼───────────────────────────────────────┘   │    │
+│  │                          │                                             │    │
+│  │  ┌───────────────────────┼───────────────────────────────────────┐   │    │
+│  │  │              PRIVATE SUBNETS                                    │   │    │
+│  │  │                          │                                       │   │    │
+│  │  │         ┌────────────────┴────────────────┐                   │   │    │
+│  │  │         │                                  │                   │   │    │
+│  │  │  ┌──────▼───────┐              ┌──────▼───────┐                │   │    │
+│  │  │  │   Frontend    │              │   Backend    │                │   │    │
+│  │  │  │   (Next.js)   │              │  (NestJS)    │                │   │    │
+│  │  │  │   Port 3000   │              │  Port 3001   │                │   │    │
+│  │  │  │ Private IP    │              │ Private IP   │                │   │    │
+│  │  │  └──────────────┘              └──────┬───────┘                │   │    │
+│  │  │                                        │                          │   │    │
+│  │  │                              ┌─────────▼─────────┐                │   │    │
+│  │  │                              │   RDS PostgreSQL │                │   │    │
+│  │  │                              │   Port 5432      │                │   │    │
+│  │  │                              │   Multi-AZ        │                │   │    │
+│  │  │                              └──────────────────┘                │   │    │
+│  │  └──────────────────────────────────────────────────────────────────┘   │    │
+│  └───────────────────────────────────────────────────────────────────────┘    │
+│                                                                                │
+│  ┌───────────────────────────────────────────────────────────────────────┐    │
+│  │                    AWS ECR (Container Registry)                       │    │
+│  │  • terraform-ansible-webapp-backend                                   │    │
+│  │  • terraform-ansible-webapp-frontend                                  │    │
+│  │  • terraform-ansible-webapp-proxy                                     │    │
+│  └───────────────────────────────────────────────────────────────────────┘    │
+└───────────────────────────────────────────────────────────────────────────────┘
+                              ▲
+                              │
+                    ┌─────────┴─────────┐
+                    │  GitHub Actions   │
+                    │   CI/CD Pipeline  │
+                    └───────────────────┘
+```
 
-| From | To | Protocol | Network | Port |
-|------|----|----------|---------|------|
-| Client | Proxy | HTTP | Host | 80 |
-| Proxy | Frontend | HTTP | frontend | 3000 |
-| Proxy | Backend | HTTP | frontend | 3001 |
-| Backend | Database | PostgreSQL | backend | 5432 |
+### Network Flow
 
-### Key Points:
-- **Database Isolation**: The database is on an internal network (`backend`) with no external access
-- **No Direct Port Exposure**: Frontend and Backend services don't expose ports to the host
-- **All Traffic Through Proxy**: External clients can only access services through the Nginx reverse proxy
-- **Health Checks**: All services have health checks for proper dependency management
+```
+Internet
+   │
+   │ HTTP/HTTPS (Port 80/443)
+   ▼
+Internet Gateway
+   │
+   ▼
+Bastion Host (Nginx Proxy)
+   │                    │
+   │ /api/*, /health    │ / (all other routes)
+   ▼                    ▼
+Backend (NestJS)    Frontend (Next.js)
+   │                    │
+   │                    │ API calls
+   │                    ▼
+   │              Backend (NestJS)
+   │                    │
+   │                    │ PostgreSQL
+   │                    ▼
+   └─────────────────► RDS Database
+```
+
+### Security Architecture
+
+- **3-Tier Security Model**:
+  - **Public Tier**: Bastion/Nginx (ALB Security Group) - HTTP/HTTPS/SSH from Internet
+  - **Application Tier**: Frontend/Backend (Application Security Group) - Ports 3000, 3001, 22 from Public Tier only
+  - **Data Tier**: RDS (Database Security Group) - Port 5432 from Application Tier only
+
+- **Network Isolation**:
+  - Private subnets have no direct internet access
+  - Outbound traffic via NAT Gateway only
+  - Database in private subnet, no public access
 
 ---
 
@@ -41,42 +127,50 @@ The application stack consists of:
 DevopsGroups/
 ├── .github/
 │   └── workflows/
-│       └── ci-cd.yml           # GitHub Actions CI/CD pipeline
+│       └── ci-cd.yml              # GitHub Actions CI/CD pipeline
 ├── apps/
-│   ├── backend/
-│   │   ├── src/                # NestJS source code
-│   │   ├── Dockerfile          # Multi-stage Dockerfile
-│   │   ├── .dockerignore       # Docker build exclusions
-│   │   ├── package.json        # Dependencies
-│   │   └── tsconfig.json       # TypeScript config
-│   └── frontend/
-│       ├── src/                # Next.js source code
-│       ├── Dockerfile          # Multi-stage Dockerfile
-│       ├── .dockerignore       # Docker build exclusions
-│       ├── package.json        # Dependencies
-│       └── next.config.js      # Next.js config (standalone output)
-├── nginx/
-│   ├── nginx.conf              # Nginx reverse proxy configuration
-│   └── Dockerfile              # Nginx Dockerfile
-├── database/
-│   └── init.sql                # PostgreSQL initialization script
-├── ansible/                    # Ansible deployment playbooks
-├── terraform/                  # Terraform infrastructure code
-├── docker-compose.yml          # Docker Compose orchestration
-├── env.example                 # Environment variables template
-└── README.md                   # This file
+│   ├── backend/                   # NestJS backend application
+│   │   ├── src/
+│   │   ├── Dockerfile
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   └── frontend/                  # Next.js frontend application
+│       ├── src/
+│       ├── Dockerfile
+│       ├── package.json
+│       └── next.config.js
+├── terraform/                     # Infrastructure as Code
+│   ├── main.tf                    # Main Terraform configuration
+│   ├── variables.tf               # Variable definitions
+│   ├── outputs.tf                 # Output values
+│   ├── modules/
+│   │   ├── vpc/                   # VPC, subnets, NAT Gateway, IGW
+│   │   ├── compute/               # EC2 instances (Bastion, Frontend, Backend)
+│   │   ├── rds/                   # RDS PostgreSQL database
+│   │   ├── ecr/                   # ECR repositories
+│   │   ├── iam/                   # IAM roles and policies
+│   │   ├── networking/            # Security groups
+│   │   └── keys/                  # SSH key pairs
+│   └── scripts/
+│       └── destroy-ecr.ps1        # Helper script for ECR cleanup
+├── ansible/                       # Configuration Management
+│   ├── playbooks/
+│   │   └── deploy.yml             # Main deployment playbook
+│   ├── inventory/
+│   │   └── hosts.ini              # Auto-generated by Terraform
+│   ├── ansible.cfg                # Ansible configuration
+│   └── test-playbook.sh           # Local playbook validation
+├── docker-compose.yml           # Local development orchestration
+├── docker-compose.test.yml       # Integration test configuration
+├── env.example                    # Environment variables template
+└── README.md                      # This file
 ```
 
 ---
 
-## How to Run the Project
+## Quick Start
 
-### Prerequisites
-
-- Docker 24.0+ and Docker Compose v2
-- Git
-
-### Quick Start
+### Local Development (Docker Compose)
 
 1. **Clone the repository**
    ```bash
@@ -95,17 +189,212 @@ DevopsGroups/
    docker compose up -d
    ```
 
-4. **Verify services are running**
-   ```bash
-   docker compose ps
-   ```
-
-5. **Access the application**
+4. **Access the application**
    - Frontend: http://localhost
-   - Backend API: http://localhost/api or http://localhost/notes
+   - Backend API: http://localhost/api/notes
    - Health Check: http://localhost/health
 
-### Useful Commands
+### AWS Deployment
+
+#### Prerequisites
+
+- **AWS Account** with appropriate permissions
+- **Terraform** >= 1.5.0
+- **Ansible** >= 8.0
+- **AWS CLI** configured (`aws configure`)
+- **SSH Key Pair** (or let Terraform generate one)
+
+#### Step 1: Configure Terraform Variables
+
+Edit `terraform/terraform.tfvars` or set environment variables:
+
+```hcl
+project_name = "terraform-ansible-webapp"
+aws_region   = "eu-west-1"
+environment  = "dev"
+
+# VPC Configuration
+vpc_cidr             = "10.0.0.0/16"
+public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24"]
+
+# Database Configuration
+db_name           = "notesdb"
+db_username       = "dbadmin"
+db_password       = "your-secure-password"
+db_instance_class = "db.t3.micro"
+```
+
+#### Step 2: Provision AWS Infrastructure
+
+```bash
+cd terraform
+
+# Initialize Terraform
+terraform init
+
+# Review the execution plan
+terraform plan
+
+# Apply infrastructure
+terraform apply
+```
+
+This creates:
+- VPC with public/private subnets across 2 AZs
+- Internet Gateway and NAT Gateway
+- Security Groups (3-tier architecture)
+- EC2 instances (Bastion, Frontend, Backend)
+- RDS PostgreSQL database
+- ECR repositories
+- IAM roles and policies
+- SSH key pair
+
+#### Step 3: Deploy Application with Ansible
+
+```bash
+cd ../ansible
+
+# Ansible inventory is auto-generated by Terraform
+ansible-playbook playbooks/deploy.yml -i inventory/hosts.ini
+```
+
+This deploys:
+- Docker on all EC2 instances
+- Backend container from ECR
+- Frontend container from ECR
+- Nginx proxy on bastion host
+- Health checks and verification
+
+#### Step 4: Access Your Application
+
+After deployment, get the bastion public IP from Terraform outputs:
+
+```bash
+cd terraform
+terraform output bastion_public_ip
+```
+
+Access the application at: `http://<bastion-public-ip>`
+
+---
+
+## CI/CD Pipeline
+
+The GitHub Actions workflow (`.github/workflows/ci-cd.yml`) automates the entire build, test, and deployment process:
+
+### Pipeline Stages
+
+1. **Lint & Test** (`lint-test`)
+   - Backend: ESLint, TypeScript compilation
+   - Frontend: ESLint, Next.js build validation
+
+2. **Build** (`build`)
+   - Build Docker images for backend, frontend, and proxy
+   - Generate image tags using commit SHA
+   - Save images as artifacts
+
+3. **Security Scan** (`security-scan`)
+   - Trivy vulnerability scanning for all images
+   - Fail on HIGH/CRITICAL vulnerabilities
+
+4. **Integration Test** (`integration-test`)
+   - Full stack testing with Docker Compose
+   - Health checks for all services
+   - API endpoint testing
+
+5. **Push to ECR** (`push`)
+   - Authenticate with AWS ECR
+   - Push images to ECR repositories
+   - Tag with commit SHA
+
+6. **Deploy to AWS** (`deploy`)
+   - Run Ansible playbook via bastion host
+   - Deploy containers to EC2 instances
+   - Verify deployment health
+
+### Pipeline Triggers
+
+- **On Push**: Runs on `main` and `develop/**` branches
+- **On Pull Request**: Runs on PRs to `main` and `develop/**`
+- **Manual**: `workflow_dispatch` for manual triggers
+
+### Required GitHub Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `AWS_ACCESS_KEY_ID` | AWS access key for ECR and deployment |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key |
+| `AWS_SESSION_TOKEN` | (Optional) AWS session token for temporary credentials |
+| `DB_PASSWORD` | Database password for production |
+
+### Required GitHub Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `AWS_REGION` | AWS region | `eu-west-1` |
+| `AWS_ACCOUNT_ID` | AWS account ID for ECR | (required) |
+
+---
+
+## Infrastructure Components
+
+### Terraform Modules
+
+| Module | Purpose | Resources Created |
+|--------|---------|-------------------|
+| `vpc` | Network infrastructure | VPC, subnets, IGW, NAT Gateway, route tables |
+| `compute` | Compute instances | EC2 instances (Bastion, Frontend, Backend) |
+| `rds` | Database | RDS PostgreSQL instance |
+| `ecr` | Container registry | ECR repositories for Docker images |
+| `iam` | Access control | IAM roles, instance profiles, policies |
+| `networking` | Security | Security groups, rules |
+| `keys` | SSH access | EC2 key pairs |
+
+### Security Groups
+
+- **ALB/Bastion SG**: Allows HTTP (80), HTTPS (443), SSH (22) from Internet
+- **Application SG**: Allows ports 3000, 3001, 22 from ALB SG only
+- **Database SG**: Allows port 5432 from Application SG only
+
+### IAM Roles
+
+- **EC2 Instance Role**: ECR read access, CloudWatch logs
+- **Bastion Role**: SSH access (no ECR needed for public Nginx image)
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Backend health check |
+| GET | `/api/notes` | List all notes |
+| GET | `/api/notes/:id` | Get note by ID |
+| POST | `/api/notes` | Create a new note |
+| PUT | `/api/notes/:id` | Update a note |
+| DELETE | `/api/notes/:id` | Delete a note |
+
+### Example API Calls
+
+```bash
+# Health check
+curl http://<bastion-ip>/health
+
+# Get all notes
+curl http://<bastion-ip>/api/notes
+
+# Create a note
+curl -X POST http://<bastion-ip>/api/notes \
+  -H "Content-Type: application/json" \
+  -d '{"title":"My Note","content":"Note content","category":"Work"}'
+```
+
+---
+
+## Useful Commands
+
+### Local Development
 
 ```bash
 # View logs
@@ -125,186 +414,194 @@ docker compose down -v
 
 # Rebuild images
 docker compose build --no-cache
-
-# Scale services (if needed)
-docker compose up -d --scale backend=2
 ```
 
----
-
-## Key DevOps Decisions
-
-### 1. Multi-Stage Dockerfiles
-- **Rationale**: Reduces final image size by separating build dependencies from runtime
-- **Implementation**: 
-  - Stage 1: Install dependencies
-  - Stage 2: Build application
-  - Stage 3: Production runtime with minimal footprint
-
-### 2. Non-Root Users
-- **Rationale**: Security best practice to limit container privileges
-- **Implementation**: Created `nestjs` and `nextjs` users with UID 1001
-
-### 3. Network Isolation
-- **Rationale**: Defense in depth - database should never be directly accessible
-- **Implementation**: 
-  - `frontend` network: Connects proxy, frontend, and backend
-  - `backend` network: Internal-only, connects backend to database
-
-### 4. Health Checks
-- **Rationale**: Enables proper service dependency management and auto-recovery
-- **Implementation**: All services have health checks with appropriate intervals
-
-### 5. Named Volumes
-- **Rationale**: Data persistence across container restarts
-- **Implementation**: `postgres_data` volume for database
-
-### 6. Environment-Based Configuration
-- **Rationale**: Separation of configuration from code
-- **Implementation**: All sensitive values via environment variables
-
-### 7. Reverse Proxy Pattern
-- **Rationale**: Single entry point, TLS termination point, security headers
-- **Implementation**: Nginx with path-based routing and proxy headers
-
-### 8. CI/CD Pipeline
-- **Rationale**: Automated testing, building, and deployment
-- **Implementation**: GitHub Actions with multiple stages:
-  - Lint & Test
-  - Build Docker images
-  - Security scanning (Trivy)
-  - Integration testing
-  - Push to registry
-  - Deploy to AWS
-
----
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Backend health check |
-| GET | `/notes` | List all notes |
-| GET | `/notes/:id` | Get note by ID |
-| POST | `/notes` | Create a new note |
-| PUT | `/notes/:id` | Update a note |
-| DELETE | `/notes/:id` | Delete a note |
-
-### Example API Calls
+### Terraform
 
 ```bash
-# Health check
-curl http://localhost/health
+# Initialize Terraform
+terraform init
 
-# Get all notes
-curl http://localhost/notes
+# Plan changes
+terraform plan
 
-# Create a note
-curl -X POST http://localhost/notes \
-  -H "Content-Type: application/json" \
-  -d '{"title":"My Note","content":"Note content","category":"Work"}'
+# Apply infrastructure
+terraform apply
 
-# Update a note
-curl -X PUT http://localhost/notes/1 \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Updated Title"}'
+# Apply only ECR module (for force_delete update)
+terraform apply -target=module.ecr
 
-# Delete a note
-curl -X DELETE http://localhost/notes/1
+# Destroy infrastructure
+terraform destroy
+
+# View outputs
+terraform output
+
+# List resources in state
+terraform state list
 ```
 
----
-
-## Testing Data Persistence
+### Ansible
 
 ```bash
-# Create a note
-curl -X POST http://localhost/notes \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Persistence Test","content":"Testing data persistence"}'
+# Validate playbook syntax
+ansible-playbook playbooks/deploy.yml --syntax-check -i inventory/hosts.ini
 
-# Restart containers (not volumes)
-docker compose restart
+# Dry run (check mode)
+ansible-playbook playbooks/deploy.yml --check -i inventory/hosts.ini
 
-# Verify note still exists
-curl http://localhost/notes
+# Deploy application
+ansible-playbook playbooks/deploy.yml -i inventory/hosts.ini
+
+# Test connectivity
+ansible all -i inventory/hosts.ini -m ping
 ```
 
----
+### AWS CLI
 
-## CI/CD Pipeline
+```bash
+# List ECR repositories
+aws ecr describe-repositories --region eu-west-1
 
-The GitHub Actions workflow (`.github/workflows/ci-cd.yml`) includes:
+# List images in repository
+aws ecr list-images --repository-name terraform-ansible-webapp-backend --region eu-west-1
 
-1. **Lint & Test**: Code quality checks for backend and frontend
-2. **Build**: Multi-stage Docker image builds with caching
-3. **Security Scan**: Trivy vulnerability scanning
-4. **Integration Test**: Full stack testing with Docker Compose
-5. **Push**: Push images to GitHub Container Registry (on main/develop)
-6. **Deploy**: Deploy to AWS using Terraform and Ansible (on main)
-
-### Required Secrets
-
-| Secret | Description |
-|--------|-------------|
-| `AWS_ACCESS_KEY_ID` | AWS access key for deployment |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key for deployment |
-| `DB_PASSWORD` | Database password for production |
-| `DB_ENDPOINT` | RDS endpoint for production |
+# Force delete ECR repository (if needed)
+aws ecr delete-repository --repository-name terraform-ansible-webapp-backend --region eu-west-1 --force
+```
 
 ---
 
 ## Troubleshooting
 
-### Services not starting
+### Terraform Issues
+
+**ECR Repository Not Empty Error**
 ```bash
-# Check logs
-docker compose logs
+# Use the helper script to force-delete ECR repos
+.\terraform\scripts\destroy-ecr.ps1
 
-# Check specific service
-docker compose logs backend
-
-# Check health status
-docker compose ps
+# Or manually:
+aws ecr delete-repository --repository-name terraform-ansible-webapp-backend --region eu-west-1 --force
+terraform state rm 'module.ecr.aws_ecr_repository.main["backend"]'
+terraform destroy
 ```
 
-### Database connection issues
+**State Lock Issues**
 ```bash
-# Check if database is healthy
-docker compose exec database pg_isready -U dbadmin -d notesdb
-
-# Connect to database
-docker compose exec database psql -U dbadmin -d notesdb
+# If Terraform is stuck, check for lock file
+terraform force-unlock <LOCK_ID>
 ```
 
-### Proxy not routing correctly
-```bash
-# Check nginx logs
-docker compose logs proxy
+### Ansible Issues
 
-# Test nginx config
-docker compose exec proxy nginx -t
-```
+**Python Version Compatibility**
+- The playbook automatically bootstraps Python 3 on EC2 instances
+- Uses `raw` module to install Python before gathering facts
+
+**SSH Connection Issues**
+- Verify SSH key is correct: `ssh -i ansible/keys/<key>.pem ec2-user@<bastion-ip>`
+- Check security group allows SSH from your IP
+- Verify bastion host is running: `terraform output bastion_public_ip`
+
+**Module Not Found Errors**
+- Ensure Ansible version >= 8.0: `ansible --version`
+- Collections are bundled with Ansible 8.x
+
+### Application Issues
+
+**Container Health Check Failures**
+- Check container logs: `docker logs <container-name>` (on EC2)
+- Verify environment variables are set correctly
+- Check database connectivity from backend container
+
+**Database Connection Issues**
+- Verify RDS security group allows connections from application SG
+- Check RDS endpoint: `terraform output db_endpoint`
+- Test connection: `psql -h <rds-endpoint> -U dbadmin -d notesdb`
+
+### CI/CD Pipeline Issues
+
+**Build Failures**
+- Check GitHub Actions logs for specific error
+- Verify all required secrets are set in GitHub repository settings
+- Ensure Docker build context is correct
+
+**Deployment Failures**
+- Verify AWS credentials are correct
+- Check Ansible inventory is generated correctly
+- Review Ansible playbook logs in GitHub Actions output
 
 ---
 
 ## Security Considerations
 
-- ✅ Non-root users in containers
-- ✅ Database isolated on internal network
-- ✅ No hardcoded credentials
-- ✅ Security headers via Nginx
-- ✅ Rate limiting on API endpoints
-- ✅ Vulnerability scanning in CI/CD
-- ✅ Multi-stage builds (smaller attack surface)
+- ✅ **Non-root users** in containers
+- ✅ **3-tier security groups** (Public → Application → Database)
+- ✅ **Private subnets** for application and database
+- ✅ **NAT Gateway** for outbound-only internet access
+- ✅ **No hardcoded credentials** (all via environment variables)
+- ✅ **Security headers** via Nginx
+- ✅ **Vulnerability scanning** in CI/CD (Trivy)
+- ✅ **Multi-stage builds** (smaller attack surface)
+- ✅ **Encrypted EBS volumes** for EC2 instances
+- ✅ **RDS encryption at rest**
+- ✅ **IAM roles** with least privilege
+- ✅ **ECR image scanning** on push
+
+---
+
+## Cost Optimization
+
+- **Single NAT Gateway** (configurable via `single_nat_gateway` variable)
+- **EC2 t2.micro/t3.micro** instances (free tier eligible)
+- **RDS db.t3.micro** (free tier eligible)
+- **ECR lifecycle policies** to clean up old images
+- **VPC Flow Logs** optional (can be disabled)
 
 ---
 
 ## Future Improvements
 
-- [ ] Add TLS/HTTPS support
-- [ ] Implement container logging aggregation
-- [ ] Add Prometheus metrics
+- [ ] Add TLS/HTTPS support with ACM certificates
+- [ ] Implement Application Load Balancer (ALB) instead of single bastion
+- [ ] Add Auto Scaling Groups for EC2 instances
 - [ ] Implement blue-green deployments
-- [ ] Add database migrations
-- [ ] Implement authentication/authorization
+- [ ] Add Prometheus/Grafana monitoring
+- [ ] Implement container logging aggregation (CloudWatch Logs)
+- [ ] Add database migrations framework
+- [ ] Implement authentication/authorization (JWT, OAuth)
+- [ ] Add multi-region deployment
+- [ ] Implement infrastructure cost monitoring
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+## Authors
+
+- **DevopsGroups** - Infrastructure, deployment automation, and application development
+
+---
+
+## Acknowledgments
+
+- AWS for cloud infrastructure
+- HashiCorp for Terraform
+- Ansible for configuration management
+- Docker for containerization
+- NestJS and Next.js communities

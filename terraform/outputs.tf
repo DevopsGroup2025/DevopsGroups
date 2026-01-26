@@ -85,39 +85,87 @@ output "web_url" {
 }
 
 # =============================================================================
-# Frontend Outputs (Private Subnet)
+# Frontend Outputs (Private Subnets - Multi-AZ)
 # =============================================================================
+output "frontend_private_ips" {
+  description = "List of private IP addresses of all frontend servers"
+  value       = [for f in module.frontend : f.instance_private_ip]
+}
+
+output "frontend_instance_ids" {
+  description = "List of IDs of all frontend EC2 instances"
+  value       = [for f in module.frontend : f.instance_id]
+}
+
+output "frontend_instances" {
+  description = "Map of frontend instances with their details"
+  value = {
+    for key, f in module.frontend : key => {
+      instance_id       = f.instance_id
+      private_ip        = f.instance_private_ip
+      instance_name     = "${var.project_name}-frontend-${local.availability_zones[key]}"
+      availability_zone = local.availability_zones[key]
+      subnet_id         = module.vpc.private_subnet_ids[key]
+    }
+  }
+}
+
+# Legacy output for backward compatibility (first frontend instance)
 output "frontend_private_ip" {
-  description = "Private IP address of the frontend server"
-  value       = module.frontend.instance_private_ip
+  description = "Private IP address of the first frontend server (legacy - use frontend_private_ips)"
+  value       = length(module.frontend) > 0 ? values(module.frontend)[0].instance_private_ip : null
 }
 
 output "frontend_instance_id" {
-  description = "ID of the frontend EC2 instance"
-  value       = module.frontend.instance_id
+  description = "ID of the first frontend EC2 instance (legacy - use frontend_instance_ids)"
+  value       = length(module.frontend) > 0 ? values(module.frontend)[0].instance_id : null
 }
 
 output "ssh_command_frontend" {
-  description = "SSH command to connect to frontend (via bastion)"
-  value       = "ssh -i ${module.keys.private_key_path} -J ${var.ssh_user}@${module.bastion.instance_public_ip} ${var.ssh_user}@${module.frontend.instance_private_ip}"
+  description = "SSH command to connect to first frontend (via bastion)"
+  value       = length(module.frontend) > 0 ? "ssh -i ${module.keys.private_key_path} -J ${var.ssh_user}@${module.bastion.instance_public_ip} ${var.ssh_user}@${values(module.frontend)[0].instance_private_ip}" : null
 }
 
 # =============================================================================
-# Backend Outputs (Private Subnet)
+# Backend Outputs (Private Subnets - Multi-AZ)
 # =============================================================================
+output "backend_private_ips" {
+  description = "List of private IP addresses of all backend servers"
+  value       = [for b in module.backend : b.instance_private_ip]
+}
+
+output "backend_instance_ids" {
+  description = "List of IDs of all backend EC2 instances"
+  value       = [for b in module.backend : b.instance_id]
+}
+
+output "backend_instances" {
+  description = "Map of backend instances with their details"
+  value = {
+    for key, b in module.backend : key => {
+      instance_id       = b.instance_id
+      private_ip        = b.instance_private_ip
+      instance_name     = "${var.project_name}-backend-${local.availability_zones[key]}"
+      availability_zone = local.availability_zones[key]
+      subnet_id         = module.vpc.private_subnet_ids[key]
+    }
+  }
+}
+
+# Legacy output for backward compatibility (first backend instance)
 output "backend_private_ip" {
-  description = "Private IP address of the backend server"
-  value       = module.backend.instance_private_ip
+  description = "Private IP address of the first backend server (legacy - use backend_private_ips)"
+  value       = length(module.backend) > 0 ? values(module.backend)[0].instance_private_ip : null
 }
 
 output "backend_instance_id" {
-  description = "ID of the backend EC2 instance"
-  value       = module.backend.instance_id
+  description = "ID of the first backend EC2 instance (legacy - use backend_instance_ids)"
+  value       = length(module.backend) > 0 ? values(module.backend)[0].instance_id : null
 }
 
 output "ssh_command_backend" {
-  description = "SSH command to connect to backend (via bastion)"
-  value       = "ssh -i ${module.keys.private_key_path} -J ${var.ssh_user}@${module.bastion.instance_public_ip} ${var.ssh_user}@${module.backend.instance_private_ip}"
+  description = "SSH command to connect to first backend (via bastion)"
+  value       = length(module.backend) > 0 ? "ssh -i ${module.keys.private_key_path} -J ${var.ssh_user}@${module.bastion.instance_public_ip} ${var.ssh_user}@${values(module.backend)[0].instance_private_ip}" : null
 }
 
 # =============================================================================
@@ -192,16 +240,20 @@ output "database_security_group_id" {
 # Ansible Inventory Helpers
 # =============================================================================
 output "ansible_inventory" {
-  description = "Ansible inventory content for all hosts"
+  description = "Ansible inventory content for all hosts (multi-AZ)"
   value       = <<-EOT
     [bastion]
     ${module.bastion.instance_public_ip} ansible_user=${var.ssh_user}
     
     [frontend]
-    ${module.frontend.instance_private_ip} ansible_user=${var.ssh_user}
+%{ for key, f in module.frontend ~}
+    ${f.instance_private_ip} ansible_user=${var.ssh_user}
+%{ endfor ~}
     
     [backend]
-    ${module.backend.instance_private_ip} ansible_user=${var.ssh_user}
+%{ for key, b in module.backend ~}
+    ${b.instance_private_ip} ansible_user=${var.ssh_user}
+%{ endfor ~}
     
     [app:children]
     frontend

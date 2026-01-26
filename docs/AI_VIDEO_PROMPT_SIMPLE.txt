@@ -1,0 +1,162 @@
+================================================================================
+COPY-PASTE PROMPT FOR AI VIDEO/ANIMATION TOOLS
+(Suitable for: Runway, Pika, HeyGen, Animaker, or similar tools)
+================================================================================
+
+PROMPT 1: Full Architecture Animation
+-------------------------------------
+Create a professional animated AWS architecture diagram in draw.io style. 
+Show a 3-tier web application infrastructure with:
+
+- AWS Cloud container (eu-west-1 region)
+- VPC (10.0.0.0/16) with dashed border
+- 2 Availability Zones side by side
+- Public subnet (green, 10.0.1.0/24) containing:
+  - Internet Gateway at top
+  - NAT Gateway 
+  - Bastion Host with Nginx (public IP: 34.x.x.x)
+- Private subnets (blue, 10.0.10.0/24 and 10.0.11.0/24) containing:
+  - Frontend EC2 instance running Next.js on port 3000
+  - Backend EC2 instance running NestJS on port 3001
+  - RDS PostgreSQL database on port 5432
+
+Animate traffic flow: User → Internet Gateway → Bastion/Nginx → Frontend/Backend → Database.
+Use AWS official icons. Clean white background. Professional style like Lucidchart.
+Show security group shields around each tier.
+Label all components clearly.
+
+Duration: 60 seconds
+Style: Professional, corporate, clean
+Colors: AWS palette (dark blue #232F3E, orange #FF9900, green #7AA116)
+
+================================================================================
+
+PROMPT 2: Network Flow Animation
+--------------------------------
+Animate a network request flow through AWS multi-tier architecture:
+
+1. User sends HTTP request
+2. Request enters through Internet Gateway
+3. Hits Bastion Host running Nginx reverse proxy
+4. Nginx routes: "/" to Frontend (port 3000), "/api" to Backend (port 3001)
+5. Backend queries RDS PostgreSQL database (port 5432)
+6. Response flows back to user
+
+Show as glowing packets moving along connection lines.
+Use draw.io diagram style with AWS architecture icons.
+Private subnets in blue, public subnet in green.
+Security group boundaries shown as shields.
+Clean, professional animation suitable for DevOps presentation.
+
+================================================================================
+
+PROMPT 3: CI/CD Pipeline Animation
+----------------------------------
+Create animated CI/CD pipeline diagram showing:
+
+GitHub (code push) → GitHub Actions (build & test) → Docker Build → AWS ECR (push images) → Ansible Deployment → EC2 Instances (via SSH through Bastion)
+
+Show:
+- 3 Docker containers: frontend, backend, proxy
+- ECR repository icons
+- SSH connection through bastion to private instances
+- Deployment spreading to Frontend and Backend servers
+
+Style: draw.io professional diagram
+Animation: Progress flow left to right
+Icons: GitHub, Docker, AWS ECR, Ansible, EC2
+Background: White/light gray
+
+================================================================================
+
+PROMPT 4: Complete Infrastructure Diagram (Static to Animated)
+--------------------------------------------------------------
+Transform this text architecture into animated diagram:
+
+```
+                    INTERNET
+                        │
+                        ▼
+              ┌─────────────────┐
+              │ Internet Gateway│
+              └────────┬────────┘
+                       │
+         ┌─────────────┴─────────────┐
+         │      PUBLIC SUBNET         │
+         │  ┌─────────┐ ┌──────────┐ │
+         │  │ Bastion │ │   NAT    │ │
+         │  │ (Nginx) │ │ Gateway  │ │
+         │  └────┬────┘ └────┬─────┘ │
+         └───────┼───────────┼───────┘
+                 │           │
+         ┌───────┼───────────┼───────┐
+         │      PRIVATE SUBNETS       │
+         │  ┌────▼────┐ ┌────▼────┐  │
+         │  │Frontend │ │Backend  │  │
+         │  │(Next.js)│ │(NestJS) │  │
+         │  │Port 3000│ │Port 3001│  │
+         │  └─────────┘ └────┬────┘  │
+         │                   │       │
+         │            ┌──────▼─────┐ │
+         │            │    RDS     │ │
+         │            │ PostgreSQL │ │
+         │            └────────────┘ │
+         └───────────────────────────┘
+```
+
+Animate: Draw each component appearing sequentially with smooth fade-in.
+Then animate data flowing through connections with glowing particles.
+AWS icons, draw.io style, professional DevOps presentation quality.
+
+================================================================================
+
+PROMPT 5: Security Architecture Animation
+-----------------------------------------
+Create animated security group diagram for AWS 3-tier architecture:
+
+TIER 1 - PUBLIC (ALB Security Group):
+- Shield icon with "Public Tier"
+- Allows: HTTP 80, HTTPS 443, SSH 22 from Internet
+- Contains: Bastion/Nginx proxy
+
+TIER 2 - APPLICATION (App Security Group):
+- Shield icon with "Application Tier"  
+- Allows: Ports 3000, 3001, 22 ONLY from Public Tier
+- Contains: Frontend (Next.js), Backend (NestJS)
+
+TIER 3 - DATABASE (DB Security Group):
+- Shield icon with "Database Tier"
+- Allows: Port 5432 ONLY from Application Tier
+- Contains: RDS PostgreSQL
+
+Animation: Show arrows between tiers indicating allowed traffic.
+Block symbols (X) for direct internet access to private tiers.
+Style: Clean, professional, AWS security diagram.
+
+================================================================================
+
+KEYWORDS FOR SEARCH/GENERATION:
+- AWS architecture diagram animation
+- Draw.io style cloud infrastructure
+- Multi-tier VPC network visualization
+- Professional DevOps presentation
+- EC2 RDS VPC animated diagram
+- Security groups network flow
+- CI/CD pipeline visualization
+- Terraform infrastructure diagram
+
+================================================================================
+
+TOOLS TO USE:
+- Runway ML (AI video generation)
+- Pika Labs (AI animation)
+- Animaker (animated presentations)
+- Vyond (professional animations)
+- After Effects + AWS icons (manual but precise)
+- Miro/Figma + animation export
+- D2 (diagram scripting) + animation
+- Excalidraw with animation plugins
+
+================================================================================
+
+
