@@ -1,18 +1,3 @@
-# =============================================================================
-# Terraform Configuration - Multi-Tier AWS Infrastructure
-# =============================================================================
-# Architecture:
-#   Internet -> ALB/Bastion (public) -> App Servers (private) -> RDS (private)
-#
-# Components:
-#   - VPC with public and private subnets across 2 AZs
-#   - NAT Gateway for private subnet internet access
-#   - Bastion host with Nginx for load balancing and SSH jump
-#   - Frontend and Backend EC2 instances in private subnets
-#   - RDS PostgreSQL in private subnets
-#   - ECR repositories for Docker images
-#   - IAM roles for EC2 to access ECR
-# =============================================================================
 
 terraform {
   required_version = ">= 1.5.0"
@@ -80,9 +65,9 @@ module "vpc" {
   common_tags = local.common_tags
 }
 
-# =============================================================================
+# ========================================================================
 # Module: ECR - Container Registry for Docker Images
-# =============================================================================
+# ========================================================================
 module "ecr" {
   source = "./modules/ecr"
 
