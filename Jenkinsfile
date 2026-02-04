@@ -1,15 +1,6 @@
 pipeline {
     agent { label 'jenkinsagent' }
 
-    options {
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-        timeout(time: 1, unit: 'HOURS')
-    }
-
-    tools {
-        nodejs 'node'
-    }
-
     environment {
         DOCKER_IMAGE_BACKEND = 'devops-backend'
         DOCKER_IMAGE_FRONTEND = 'devops-frontend'
@@ -18,14 +9,14 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                git url: 'https://github.com/DevopsGroup2025/DevopsGroups.git', branch: 'main'
             }
         }
 
         stage('Build Backend') {
             steps {
                 dir('apps/backend') {
-                    sh 'npm ci'
+                    sh 'npm install'
                     sh 'npm run build'
                 }
             }
@@ -34,7 +25,7 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir('apps/frontend') {
-                    sh 'npm ci'
+                    sh 'npm install'
                     sh 'npm run build'
                 }
             }
